@@ -469,14 +469,22 @@ async function processarAcert(){
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
 
     // Extrair mês/ano do cabeçalho
+    // O arquivo tem "Mês/Ano:" numa célula e "06/2026" em outra célula da mesma linha
     let mesRef = null;
     for(const row of rows){
+      let temMesAno = false;
+      let valorMes = null;
       for(const v of row){
         if(v && typeof v === 'string'){
-          const m = v.match(/Mês\/Ano:\s*(\d{2})\/(\d{4})/);
-          if(m){ mesRef = `${m[2]}-${m[1]}`; break; }
+          if(v.trim() === 'Mês/Ano:') temMesAno = true;
+          const m = v.match(/^(\d{2})\/(\d{4})$/);
+          if(m) valorMes = `${m[2]}-${m[1]}`;
+          // Também tenta num único campo
+          const m2 = v.match(/Mês\/Ano:\s*(\d{2})\/(\d{4})/);
+          if(m2){ mesRef = `${m2[2]}-${m2[1]}`; break; }
         }
       }
+      if(temMesAno && valorMes) mesRef = valorMes;
       if(mesRef) break;
     }
     if(!mesRef){ throw new Error('Mês/Ano não encontrado no cabeçalho do arquivo'); }
