@@ -249,9 +249,13 @@ async function carregarDados(){
   document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
 
   // Buscar impedimentos do banco
+  const diasNoMes = new Date(parseInt(mesStr.split('-')[0]), parseInt(mesStr.split('-')[1]), 0).getDate();
+  const dataInicio = `${mesStr}-01`;
+  const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
   const {data:imps} = await sb.from('impedimentos')
     .select('*')
-    .like('data', `${mesStr}-%`)
+    .gte('data', dataInicio)
+    .lte('data', dataFim)
     .order('base').order('matricula').order('data');
 
   // Buscar acertadas do mês
