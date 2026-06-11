@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size:14px}
@@ -143,6 +144,11 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   </div>
 
   <div class="twrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;cursor:pointer" onclick="toggleTabela(this)">
+      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Impedimentos</span>
+      <span id="tabela-toggle-icon" style="color:#90c090;font-size:16px">&#9650;</span>
+    </div>
+    <div id="tabela-body-wrap">
     <table>
       <thead><tr>
         <th>Base</th>
@@ -159,6 +165,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <tbody id="tbody"></tbody>
     </table>
     <div class="pagination" id="pagination"></div>
+    </div>
   </div>
 </div>
 
@@ -183,6 +190,9 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 </div>
 
 <script>
+// Registrar plugin datalabels globalmente
+Chart.register(ChartDataLabels);
+
 const SUPABASE_URL = 'https://ndwivbhqglpnfyqwjbzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kd2l2YmhxZ2xwbmZ5cXdqYnp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MjMwNzksImV4cCI6MjA5NTk5OTA3OX0.uYzp_BlsQlgMp48k10gpSQdBReXJToGuVAkh38i3ABg';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -192,11 +202,18 @@ const OC_CEMIG = new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906
 let respFiltro = 'todos';
 let dadosRaw = [];
 let localMap = {};
-let acertadasSet = new Set(); // chaves "instalacao|reg" que saíram de impedimento
+let acertadasSet = new Set();
 let paginaAtual = 1;
 const POR_PAGINA = 100;
+let tabelaAberta = true;
 
 let chartBase = null, chartLocal = null, chartLeit = null;
+
+function toggleTabela(header){
+  tabelaAberta = !tabelaAberta;
+  document.getElementById('tabela-body-wrap').style.display = tabelaAberta ? '' : 'none';
+  document.getElementById('tabela-toggle-icon').innerHTML = tabelaAberta ? '&#9650;' : '&#9660;';
+}
 
 function irPara(id, btn){
   if(id==='admin'){
@@ -338,8 +355,7 @@ async function buscarTotalLeituras(base){
   const di = `${aa}-${mm}-01`;
   const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
   let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
-  if(base) q = q.eq('base_mat', base); // se tiver coluna base_mat
-  // Senão, busca tudo e soma
+  if(base) q = q.eq('base', base);
   const {data} = await q;
   return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
 }
@@ -371,7 +387,11 @@ function renderGraficos(dados){
     },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.raw}%`}}},
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`${c.raw}%`}},
+        datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}, formatter:v=>`${v}%`}
+      },
       scales:{y:{ticks:{callback:v=>`${v}%`}, beginAtZero:true}}
     }
   });
@@ -390,7 +410,10 @@ function renderGraficos(dados){
     },
     options:{
       indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
+      plugins:{
+        legend:{display:false},
+        datalabels:{anchor:'end', align:'right', color:'#1a4a1a', font:{size:11,weight:'500'}}
+      },
       scales:{x:{beginAtZero:true}}
     }
   });
@@ -409,7 +432,10 @@ function renderGraficos(dados){
     },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
+      plugins:{
+        legend:{display:false},
+        datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}}
+      },
       scales:{y:{beginAtZero:true}}
     }
   });
