@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Impedimentos — GBS Serviços</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size:14px}
+.hdr{background:#1a4a1a;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px}
+.hdr img{height:36px;width:auto}
+.hdr-title{font-size:16px;font-weight:500;letter-spacing:.5px;color:#c8e8c8;flex:1;text-align:center}
+.nav{display:flex;gap:2px;background:#0f2e0f;padding:6px 20px}
+.nav button{background:none;border:none;color:#90c090;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:13px}
+.nav button.ativo{background:#2d7a2d;color:#fff}
+.nav button:hover:not(.ativo){background:#1a4a1a}
+.pag{display:none;padding:16px 20px}
+.pag.ativo{display:block}
+
+/* FILTROS */
+.filtros{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;margin-bottom:12px}
+.filtros label{font-size:11px;color:#4a7a4a;display:block;margin-bottom:3px}
+.filtros select{border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px}
+.resp-btns{display:flex;gap:4px}
+.resp-btn{padding:5px 14px;border-radius:5px;border:0.5px solid #a0c8a0;cursor:pointer;font-size:12px;font-weight:500;background:#f8fbf8;color:#4a7a4a;transition:all .15s}
+.resp-btn.ativo{background:#2d7a2d;color:#fff;border-color:#2d7a2d}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;text-align:center}
+.kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.kpi-value{font-size:26px;font-weight:500;color:#1a4a1a}
+
+/* GRAFICOS */
+.graficos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.grafico-card{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:14px}
+.grafico-card h3{font-size:12px;font-weight:500;color:#1a4a1a;text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:.3px}
+.grafico-card.full{grid-column:1/-1}
+.chart-wrap{position:relative;height:200px}
+.chart-wrap-tall{position:relative;height:260px}
+
+/* TABELA */
+.twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d}
+tbody tr:nth-child(even){background:#f8fbf8}
+tbody tr:hover{background:#f0f8f0}
+tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-right:0.5px solid #e8f4e8;white-space:nowrap}
+.badge-gbs{display:inline-block;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:500;background:#fef3c7;color:#92400e}
+.badge-cemig{display:inline-block;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:500;background:#dbeafe;color:#1e40af}
+.status-msg{padding:20px;text-align:center;color:#4a7a4a;font-size:13px}
+.pagination{display:flex;gap:6px;align-items:center;padding:10px 14px;border-top:0.5px solid #c0dcc0;background:#f0f8f0;border-radius:0 0 8px 8px}
+.pagination button{background:#fff;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:12px;color:#1a4a1a}
+.pagination button:disabled{opacity:.4;cursor:not-allowed}
+.pagination span{font-size:12px;color:#4a7a4a}
+
+/* ADMIN */
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
+.card{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:20px}
+.card h3{font-size:14px;font-weight:500;color:#1a4a1a;margin-bottom:4px}
+.card p{font-size:12px;color:#4a7a4a;margin-bottom:14px;line-height:1.5}
+.upload-area{border:1.5px dashed #90c090;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:background .15s;display:block}
+.upload-area:hover{background:#f0f8f0}
+.upload-area input{display:none}
+.upload-area .icone{font-size:28px;margin-bottom:6px;color:#2d7a2d}
+.upload-area p{margin:0;font-size:12px;color:#4a7a4a}
+.btn{display:inline-block;padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:500}
+.btn-verde{background:#2d7a2d;color:#fff}
+.btn-verde:hover{background:#1a5a1a}
+.btn-verde:disabled{background:#90c090;cursor:not-allowed}
+.progresso{margin-top:12px;font-size:12px;color:#1a4a1a;min-height:18px}
+.progresso.erro{color:#a32d2d}
+.progresso.ok{color:#2d7a2d}
+.tag-arquivo{display:inline-flex;align-items:center;gap:6px;background:#f0f8f0;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;font-size:12px;color:#1a4a1a;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <img src="logo_gbs.png" alt="GBS" onerror="this.style.display='none'">
+  <div class="hdr-title">CONTROLE DE IMPEDIMENTOS</div>
+  <span id="user-info" style="font-size:12px;color:#90c090"></span>
+  <button onclick="sair()" style="background:none;border:0.5px solid #4a7a4a;color:#90c090;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:12px;margin-left:8px">Sair</button>
+</div>
+
+<div class="nav">
+  <button class="ativo" onclick="irPara('painel',this)">Painel</button>
+  <button onclick="irPara('admin',this)">Administração</button>
+</div>
+
+<!-- PAINEL -->
+<div class="pag ativo" id="pag-painel">
+  <div class="filtros">
+    <div>
+      <label>Mês/Ano</label>
+      <select id="f-mes" onchange="carregarDados()"></select>
+    </div>
+    <div>
+      <label>Base</label>
+      <select id="f-base" onchange="carregarDados()"><option value="">Todas</option></select>
+    </div>
+    <div>
+      <label>Leiturista</label>
+      <select id="f-leit" onchange="carregarDados()"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label>RZ</label>
+      <select id="f-rz" onchange="carregarDados()"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label>Responsabilidade</label>
+      <div class="resp-btns">
+        <button class="resp-btn ativo" onclick="setResp('todos',this)">Todos</button>
+        <button class="resp-btn" onclick="setResp('GBS',this)">GBS</button>
+        <button class="resp-btn" onclick="setResp('CEMIG',this)">CEMIG</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis">
+    <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">—</div></div>
+  </div>
+
+  <div class="graficos">
+    <div class="grafico-card">
+      <h3>% Impedimentos por Base (GBS)</h3>
+      <div class="chart-wrap"><canvas id="chart-base"></canvas></div>
+    </div>
+    <div class="grafico-card">
+      <h3>Impedimentos por Local</h3>
+      <div class="chart-wrap"><canvas id="chart-local"></canvas></div>
+    </div>
+    <div class="grafico-card full">
+      <h3>Impedimentos por Leiturista</h3>
+      <div class="chart-wrap-tall"><canvas id="chart-leit"></canvas></div>
+    </div>
+  </div>
+
+  <div class="twrap">
+    <table>
+      <thead><tr>
+        <th>Base</th>
+        <th>Leiturista</th>
+        <th>RZ</th>
+        <th>UL</th>
+        <th>Instalação</th>
+        <th>Medidor</th>
+        <th>Ocorrência</th>
+        <th>Endereço</th>
+        <th>Qtd. Digitação</th>
+        <th>Responsabilidade</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="pag" id="pag-admin">
+  <div class="admin-grid">
+    <div class="card" style="grid-column:1/-1">
+      <h3>Upload — Leituras Acertadas Manualmente</h3>
+      <p>Sobe o arquivo de leituras acertadas da Cemig. Substitui <strong>todos</strong> os dados do mês indicado no cabeçalho do arquivo. O mês é detectado automaticamente.</p>
+      <label class="upload-area">
+        <input type="file" accept=".xlsx" id="inp-acert" onchange="selecionarAcert(this)">
+        <div class="icone">&#8593;</div>
+        <p>Clique ou arraste o arquivo xlsx</p>
+      </label>
+      <div id="tag-acert"></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-verde" id="btn-acert" onclick="processarAcert()" disabled>Processar e salvar</button>
+      </div>
+      <div class="progresso" id="prog-acert"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ndwivbhqglpnfyqwjbzu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_IhuNziyT5VYrMKRixcPGjA_LAn5ku-7';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const OC_CEMIG = new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906,3907,3908,5109,5802,6820,6824,6872,7000]);
+
+let respFiltro = 'todos';
+let dadosRaw = [];
+let localMap = {};
+let acertadasSet = new Set(); // chaves "instalacao|reg" que saíram de impedimento
+let paginaAtual = 1;
+const POR_PAGINA = 100;
+
+let chartBase = null, chartLocal = null, chartLeit = null;
+
+function irPara(id, btn){
+  if(id==='admin'){
+    const s=prompt('Senha de administração:');
+    if(s!=='Batman1'){if(s!==null)alert('Senha incorreta.');return;}
+  }
+  document.querySelectorAll('.pag').forEach(p=>p.classList.remove('ativo'));
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('ativo'));
+  document.getElementById('pag-'+id).classList.add('ativo');
+  btn.classList.add('ativo');
+}
+async function sair(){ await sb.auth.signOut(); location.reload(); }
+
+function setResp(v, btn){
+  respFiltro = v;
+  document.querySelectorAll('.resp-btn').forEach(b=>b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  renderPainel();
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+async function iniciar(){
+  const {data:{user}} = await sb.auth.getUser();
+  if(!user){ location.href='login.html'; return; }
+  document.getElementById('user-info').textContent = user.email;
+
+  // Meses
+  const sel = document.getElementById('f-mes');
+  const hoje = new Date();
+  for(let i=0;i<12;i++){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const val = `${mm}/${d.getFullYear()}`;
+    sel.innerHTML += `<option value="${val}">${val}</option>`;
+  }
+
+  // Local map
+  const {data:ld} = await sb.from('local_base').select('local,cidade,base');
+  (ld||[]).forEach(r => localMap[r.local] = {cidade:r.cidade, base:r.base});
+
+  await carregarDados();
+}
+
+async function carregarDados(){
+  const mes = document.getElementById('f-mes').value;
+  if(!mes) return;
+  const [mm,aa] = mes.split('/');
+  const mesStr = `${aa}-${mm}`;
+
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
+
+  // Buscar impedimentos do banco
+  const {data:imps} = await sb.from('impedimentos')
+    .select('*')
+    .like('data', `${mesStr}-%`)
+    .order('base').order('matricula').order('data');
+
+  // Buscar acertadas do mês
+  const {data:acert} = await sb.from('leituras_acertadas')
+    .select('instalacao,reg')
+    .eq('mes_ref', mesStr);
+
+  acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
+
+  // Filtrar: remover os que foram acertados (saíram de impedimento)
+  dadosRaw = (imps||[]).filter(r => !acertadasSet.has(`${r.instalacao}|${r.reg}`));
+
+  // Popular filtros
+  const bases = [...new Set(dadosRaw.map(r=>r.base).filter(Boolean))].sort();
+  const leits = [...new Set(dadosRaw.map(r=>r.matricula).filter(Boolean))].sort();
+  const rzs   = [...new Set(dadosRaw.map(r=>r.rz).filter(Boolean))].sort();
+
+  const selBase = document.getElementById('f-base');
+  const selLeit = document.getElementById('f-leit');
+  const selRz   = document.getElementById('f-rz');
+  const vBase = selBase.value, vLeit = selLeit.value, vRz = selRz.value;
+
+  selBase.innerHTML = '<option value="">Todas</option>';
+  bases.forEach(b => selBase.innerHTML += `<option value="${b}">${b}</option>`);
+  selLeit.innerHTML = '<option value="">Todos</option>';
+  leits.forEach(l => selLeit.innerHTML += `<option value="${l}">${l}</option>`);
+  selRz.innerHTML = '<option value="">Todos</option>';
+  rzs.forEach(r => selRz.innerHTML += `<option value="${r}">${r}</option>`);
+
+  if(vBase) selBase.value = vBase;
+  if(vLeit) selLeit.value = vLeit;
+  if(vRz)   selRz.value   = vRz;
+
+  paginaAtual = 1;
+  renderPainel();
+}
+
+function dadosFiltrados(){
+  const base = document.getElementById('f-base').value;
+  const leit = document.getElementById('f-leit').value;
+  const rz   = document.getElementById('f-rz').value;
+
+  return dadosRaw.filter(r => {
+    if(base && r.base !== base) return false;
+    if(leit && r.matricula !== leit) return false;
+    if(rz   && r.rz !== rz) return false;
+    if(respFiltro === 'GBS'   && r.responsabilidade !== 'GBS')   return false;
+    if(respFiltro === 'CEMIG' && r.responsabilidade !== 'CEMIG') return false;
+    return true;
+  });
+}
+
+function renderPainel(){
+  const dados = dadosFiltrados();
+  const base = document.getElementById('f-base').value;
+
+  // KPIs — leituras totais vêm da tabela jornada (mesmo mês/base)
+  // Por simplicidade, contamos do próprio banco de impedimentos + leituras da jornada
+  const qtdImp = dados.length;
+  const qtdGbs = dados.filter(r=>r.responsabilidade==='GBS').length;
+  const qtdCemig = dados.filter(r=>r.responsabilidade==='CEMIG').length;
+
+  // Para o total de leituras, buscamos da tabela jornada
+  buscarTotalLeituras(base).then(total => {
+    document.getElementById('kpis').innerHTML = `
+      <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
+      <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">${qtdImp.toLocaleString('pt-BR')}</div></div>
+      <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">${qtdGbs.toLocaleString('pt-BR')}</div></div>
+      <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>`;
+  });
+
+  renderGraficos(dados);
+  renderTabela(dados);
+}
+
+async function buscarTotalLeituras(base){
+  const mes = document.getElementById('f-mes').value;
+  if(!mes) return 0;
+  const [mm,aa] = mes.split('/');
+  const di = `${aa}-${mm}-01`;
+  const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
+  if(base) q = q.eq('base_mat', base); // se tiver coluna base_mat
+  // Senão, busca tudo e soma
+  const {data} = await q;
+  return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+}
+
+function renderGraficos(dados){
+  // % por base (só GBS) — agrupa por base
+  const porBase = {};
+  dados.filter(r=>r.responsabilidade==='GBS').forEach(r=>{
+    if(!r.base) return;
+    porBase[r.base] = (porBase[r.base]||0) + 1;
+  });
+
+  // Total leituras por base (do banco jornada — simplificado, vamos usar do dadosRaw para proporção)
+  const totalPorBase = {};
+  dadosRaw.forEach(r=>{ if(r.base) totalPorBase[r.base]=(totalPorBase[r.base]||0)+1; });
+
+  const basesLabel = Object.keys(porBase).sort((a,b)=>(porBase[b]||0)-(porBase[a]||0));
+  const pctBase = basesLabel.map(b => {
+    const tot = totalPorBase[b]||1;
+    return ((porBase[b]||0)/tot*100).toFixed(2);
+  });
+
+  if(chartBase) chartBase.destroy();
+  chartBase = new Chart(document.getElementById('chart-base'), {
+    type:'bar',
+    data:{
+      labels: basesLabel,
+      datasets:[{data:pctBase, backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.raw}%`}}},
+      scales:{y:{ticks:{callback:v=>`${v}%`}, beginAtZero:true}}
+    }
+  });
+
+  // Por local (cidade)
+  const porLocal = {};
+  dados.forEach(r=>{ if(r.cidade) porLocal[r.cidade]=(porLocal[r.cidade]||0)+1; });
+  const locaisTop = Object.entries(porLocal).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  if(chartLocal) chartLocal.destroy();
+  chartLocal = new Chart(document.getElementById('chart-local'), {
+    type:'bar',
+    data:{
+      labels: locaisTop.map(l=>l[0]),
+      datasets:[{data:locaisTop.map(l=>l[1]), backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1}]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true}}
+    }
+  });
+
+  // Por leiturista (top 15)
+  const porLeit = {};
+  dados.forEach(r=>{ if(r.matricula) porLeit[r.matricula]=(porLeit[r.matricula]||0)+1; });
+  const leitsTop = Object.entries(porLeit).sort((a,b)=>b[1]-a[1]).slice(0,15);
+
+  if(chartLeit) chartLeit.destroy();
+  chartLeit = new Chart(document.getElementById('chart-leit'), {
+    type:'bar',
+    data:{
+      labels: leitsTop.map(l=>l[0]),
+      datasets:[{data:leitsTop.map(l=>l[1]), backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true}}
+    }
+  });
+}
+
+function renderTabela(dados){
+  const inicio = (paginaAtual-1)*POR_PAGINA;
+  const pagina = dados.slice(inicio, inicio+POR_PAGINA);
+  const totalPags = Math.ceil(dados.length/POR_PAGINA);
+
+  if(!pagina.length){
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Nenhum impedimento encontrado</td></tr>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('tbody').innerHTML = pagina.map(r=>`<tr>
+    <td>${r.base||'—'}</td>
+    <td>${r.matricula||'—'}</td>
+    <td>${r.rz||'—'}</td>
+    <td>${r.ul||'—'}</td>
+    <td>${r.instalacao||'—'}</td>
+    <td>${r.medidor||'—'}</td>
+    <td>${r.ocorrencia||'—'}</td>
+    <td>${r.endereco||'—'}</td>
+    <td style="text-align:center">${r.qtd_digitacao||1}</td>
+    <td><span class="badge-${r.responsabilidade==='GBS'?'gbs':'cemig'}">${r.responsabilidade||'—'}</span></td>
+  </tr>`).join('');
+
+  document.getElementById('pagination').innerHTML = `
+    <button onclick="irPagina(${paginaAtual-1})" ${paginaAtual<=1?'disabled':''}>&#8592; Anterior</button>
+    <span>Página ${paginaAtual} de ${totalPags} &nbsp;|&nbsp; ${dados.length.toLocaleString('pt-BR')} registros</span>
+    <button onclick="irPagina(${paginaAtual+1})" ${paginaAtual>=totalPags?'disabled':''}>Próxima &#8594;</button>`;
+}
+
+function irPagina(p){
+  paginaAtual = p;
+  renderTabela(dadosFiltrados());
+  document.querySelector('.twrap').scrollIntoView({behavior:'smooth'});
+}
+
+// ── ADMIN: ACERTADAS ────────────────────────────────────────────
+let fileAcert = null;
+
+function selecionarAcert(inp){
+  fileAcert = inp.files[0]; if(!fileAcert) return;
+  document.getElementById('tag-acert').innerHTML =
+    `<div class="tag-arquivo">&#128196; ${fileAcert.name} (${(fileAcert.size/1024).toFixed(0)} KB)</div>`;
+  document.getElementById('btn-acert').disabled = false;
+}
+
+async function processarAcert(){
+  if(!fileAcert) return;
+  const prog = document.getElementById('prog-acert');
+  const btn  = document.getElementById('btn-acert');
+  btn.disabled = true; prog.className = 'progresso'; prog.textContent = 'Lendo arquivo...';
+  try {
+    const buf = await fileAcert.arrayBuffer();
+    const wb  = XLSX.read(buf, {type:'array', raw:false});
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
+
+    // Extrair mês/ano do cabeçalho
+    let mesRef = null;
+    for(const row of rows){
+      for(const v of row){
+        if(v && typeof v === 'string'){
+          const m = v.match(/Mês\/Ano:\s*(\d{2})\/(\d{4})/);
+          if(m){ mesRef = `${m[2]}-${m[1]}`; break; }
+        }
+      }
+      if(mesRef) break;
+    }
+    if(!mesRef){ throw new Error('Mês/Ano não encontrado no cabeçalho do arquivo'); }
+    prog.textContent = `Mês detectado: ${mesRef}. Processando...`;
+
+    // Extrair registros
+    let ulAtual = null;
+    const registros = [];
+    for(const row of rows){
+      const v1 = row[1] != null ? String(row[1]).trim() : '';
+      if(v1.startsWith('Unidade de Leitura:')){
+        const m = v1.match(/Unidade de Leitura: (\d+)/);
+        if(m) ulAtual = m[1];
+      } else if(/^\d{10}$/.test(v1)){
+        const ocOrig   = row[14] != null ? parseInt(String(row[14]).trim())||0 : 0;
+        const ocAcert  = row[22] != null ? parseInt(String(row[22]).trim())||0 : 0;
+        const reg      = row[6]  != null ? String(row[6]).trim() : null;
+        // Só interessa se OC original era impedimento e foi acertada para não-impedimento
+        if(ocOrig > 1999 && ocAcert <= 1999){
+          registros.push({
+            instalacao: v1,
+            reg: reg,
+            ul: ulAtual,
+            oc_original: ocOrig,
+            oc_acertada: ocAcert,
+            mes_ref: mesRef,
+          });
+        }
+      }
+    }
+
+    prog.textContent = `${registros.length} leituras acertadas. Substituindo...`;
+
+    // Deletar registros do mesmo mês e reinserir
+    await sb.from('leituras_acertadas').delete().eq('mes_ref', mesRef);
+    if(registros.length){
+      const {error} = await sb.from('leituras_acertadas').insert(registros);
+      if(error) throw error;
+    }
+
+    prog.className = 'progresso ok';
+    prog.textContent = `\u2713 ${registros.length} leituras acertadas salvas para ${mesRef}!`;
+  } catch(e){ prog.className='progresso erro'; prog.textContent='Erro: '+e.message; console.error(e); }
+  btn.disabled = false;
+}
+
+iniciar();
+</script>
+</body>
+</html>
