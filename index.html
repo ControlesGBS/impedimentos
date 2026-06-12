@@ -354,11 +354,14 @@ async function buscarTotalLeituras(base){
   const [mm,aa] = mes.split('/');
   const di = `${aa}-${mm}-01`;
   const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  console.log("buscarTotalLeituras base=", base);
   if(!base){
     const {data} = await sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
     return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
   } else {
+    console.log("buscando mats para base=", base);
     const {data:mats} = await sb.from('matriculas').select('matricula').eq('base', base);
+    console.log("mats encontradas:", JSON.stringify(mats));
     if(!mats||!mats.length) return 0;
     const listamat = mats.map(m=>m.matricula);
     const {data} = await sb.from('jornada').select('qtd_leituras')
