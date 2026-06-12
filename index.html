@@ -360,22 +360,37 @@ async function buscarTotalLeituras(base, rz, leit){
   const mes = document.getElementById('f-mes').value;
   if(!mes) return 0;
   const [mm,aa] = mes.split('/');
-  const di = `${aa}-${mm}-01`;
+  const mes_ref = `${aa}-${mm}-01`;
+  const di = mes_ref;
   const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
 
-  let listamat = null;
+  // Se filtrou por leiturista, usa jornada (totais_rz não tem granularidade por mat)
+  if(leit){
+    let listamat = [leit];
+    let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df).in('matricula', listamat);
+    if(rz) q = q.eq('rz', rz);
+    const {data} = await q;
+    return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+  }
+
+  // Sem filtro de leiturista: usa totais_rz (total real do arquivo)
+  let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref);
+  if(rz) q = q.eq('rz', rz);
+  const {data:totais} = await q;
+  if(!totais||!totais.length) return 0;
+
+  // Se filtrou por base, precisa filtrar os RZs que pertencem à base
   if(base){
     const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
     if(!mats||!mats.length) return 0;
-    listamat = mats.map(m=>m.matricula);
+    // Buscar RZs das matrículas dessa base na jornada do mês
+    const listamat = mats.map(m=>m.matricula);
+    const {data:jorn} = await sb.from('jornada').select('rz,qtd_leituras')
+      .gte('data',di).lte('data',df).in('matricula', listamat);
+    return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
   }
-  if(leit) listamat = listamat ? listamat.filter(m=>m===leit) : [leit];
 
-  let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
-  if(listamat) q = q.in('matricula', listamat);
-  if(rz) q = q.eq('rz', rz);
-  const {data} = await q;
-  return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+  return totais.reduce((a,r)=>a+(r.total_leituras||0),0);
 }
 
 function renderGraficos(dados){
