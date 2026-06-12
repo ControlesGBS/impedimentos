@@ -335,15 +335,16 @@ function dadosFiltrados(){
 function renderPainel(){
   const dados = dadosFiltrados();
   const base = document.getElementById('f-base').value;
+  const rz   = document.getElementById('f-rz').value;
+  const leit = document.getElementById('f-leit').value;
 
   // KPIs — leituras totais vêm da tabela jornada (mesmo mês/base)
-  // Por simplicidade, contamos do próprio banco de impedimentos + leituras da jornada
   const qtdImp = dados.length;
   const qtdGbs = dados.filter(r=>r.responsabilidade==='GBS').length;
   const qtdCemig = dados.filter(r=>r.responsabilidade==='CEMIG').length;
 
   // Para o total de leituras, buscamos da tabela jornada
-  buscarTotalLeituras(base).then(total => {
+  buscarTotalLeituras(base, rz, leit).then(total => {
     document.getElementById('kpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">${qtdImp.toLocaleString('pt-BR')}</div></div>
@@ -355,26 +356,26 @@ function renderPainel(){
   renderTabela(dados);
 }
 
-async function buscarTotalLeituras(base){
+async function buscarTotalLeituras(base, rz, leit){
   const mes = document.getElementById('f-mes').value;
   if(!mes) return 0;
   const [mm,aa] = mes.split('/');
   const di = `${aa}-${mm}-01`;
   const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
-  console.log("buscarTotalLeituras base=", base);
-  if(!base){
-    const {data} = await sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
-    return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
-  } else {
-    console.log("buscando mats para base=", base);
+
+  let listamat = null;
+  if(base){
     const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
-    console.log("mats encontradas:", JSON.stringify(mats));
     if(!mats||!mats.length) return 0;
-    const listamat = mats.map(m=>m.matricula);
-    const {data} = await sb.from('jornada').select('qtd_leituras')
-      .gte('data',di).lte('data',df).in('matricula', listamat);
-    return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+    listamat = mats.map(m=>m.matricula);
   }
+  if(leit) listamat = listamat ? listamat.filter(m=>m===leit) : [leit];
+
+  let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
+  if(listamat) q = q.in('matricula', listamat);
+  if(rz) q = q.eq('rz', rz);
+  const {data} = await q;
+  return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
 }
 
 function renderGraficos(dados){
