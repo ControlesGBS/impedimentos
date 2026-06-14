@@ -61,11 +61,9 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 .pagination span{font-size:12px;color:#4a7a4a}
 
 /* PAINEL CONGELADO */
-.pag-painel-inner{display:flex;flex-direction:column;height:calc(100vh - 90px);padding:16px 20px;gap:10px;overflow:hidden}
-.painel-topo{flex-shrink:0}
-.painel-tabela{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
-.painel-tabela .twrap{flex:1;overflow:hidden;display:flex;flex-direction:column;border-radius:8px;border:0.5px solid #c0dcc0;background:#fff}
-.painel-tabela .twrap .tabela-scroll{flex:1;overflow-y:auto;overflow-x:auto}
+.pag-painel-inner{display:flex;flex-direction:column;height:calc(100vh - 90px);overflow:hidden}
+.painel-topo{flex-shrink:0;padding:12px 20px 0;background:#f4f6f4}
+.painel-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 20px 16px}
 
 .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
 .card{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:20px}
@@ -132,14 +130,15 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       </div>
     </div>
   </div>
-
-  <div class="kpis" id="kpis">
+  <div class="kpis" id="kpis" style="margin-bottom:0;padding-bottom:10px">
     <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">—</div></div>
   </div>
+  </div><!-- fim painel-topo -->
 
+  <div class="painel-scroll">
   <div class="graficos">
     <div class="grafico-card">
       <h3>% Impedimentos por Base (GBS)</h3>
@@ -154,15 +153,13 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <div class="chart-wrap-tall"><canvas id="chart-leit"></canvas></div>
     </div>
   </div>
-  </div><!-- fim painel-topo -->
 
-  <div class="painel-tabela">
   <div class="twrap">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;cursor:pointer" onclick="toggleTabela(this)">
       <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Impedimentos</span>
       <span id="tabela-toggle-icon" style="color:#90c090;font-size:16px">&#9650;</span>
     </div>
-    <div id="tabela-body-wrap" class="tabela-scroll">
+    <div id="tabela-body-wrap">
     <table>
       <thead><tr>
         <th>Base</th>
@@ -181,7 +178,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
     <div class="pagination" id="pagination"></div>
     </div>
   </div>
-  </div><!-- fim painel-tabela -->
+  </div><!-- fim painel-scroll -->
 </div><!-- fim pag-painel-inner -->
 </div>
 
@@ -195,8 +192,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <select id="ac-mes" onchange="carregarAcertadas()"></select>
     </div>
   </div>
-
-  <div class="kpis" id="ac-kpis">
+  <div class="kpis" id="ac-kpis" style="margin-bottom:0;padding-bottom:10px">
     <div class="kpi"><div class="kpi-label">Total Acertadas</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">Impedimentos no Mês</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">—</div></div>
@@ -204,13 +200,12 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   </div>
   </div>
 
-  <div class="painel-tabela">
+  <div class="painel-scroll">
   <div class="twrap">
     <div style="padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
       <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Acertadas</span>
       <span id="ac-count" style="font-size:11px;color:#90c090"></span>
     </div>
-    <div class="tabela-scroll">
     <table>
       <thead><tr>
         <th>Instalação</th>
@@ -221,7 +216,6 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       </tr></thead>
       <tbody id="ac-tbody"><tr><td colspan="5" class="status-msg">Selecione um mês.</td></tr></tbody>
     </table>
-    </div>
   </div>
   </div>
 </div>
@@ -791,10 +785,14 @@ async function carregarAcertadas(){
 
   document.getElementById('ac-tbody').innerHTML = '<tr><td colspan="5" class="status-msg">Carregando...</td></tr>';
 
-  // Buscar acertadas do mês
-  const {data:acert} = await sb.from('leituras_acertadas').select('*').eq('mes_ref', mesStr).order('instalacao');
+  // Tentar os dois formatos de mes_ref
+  let acert = null;
+  for(const fmt of [mesStr, `${mesStr}-01`]){
+    const {data} = await sb.from('leituras_acertadas').select('*').eq('mes_ref', fmt).order('instalacao');
+    if(data && data.length){ acert = data; break; }
+  }
 
-  // Buscar total impedimentos do mês para % resolvidos
+  // Buscar total impedimentos do mês
   const dataInicio = `${mesStr}-01`;
   const diasNoMes = new Date(parseInt(aa), parseInt(mm), 0).getDate();
   const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
@@ -805,7 +803,6 @@ async function carregarAcertadas(){
   const total = lista.length;
   const pct = totalImp ? Math.round(total/totalImp*100) : 0;
 
-  // OC mais frequente
   const ocCount = {};
   lista.forEach(r=>{ const oc=r.oc_original||'—'; ocCount[oc]=(ocCount[oc]||0)+1; });
   const ocMaisFreq = Object.entries(ocCount).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
