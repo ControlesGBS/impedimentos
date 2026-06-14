@@ -365,8 +365,9 @@ function dadosFiltrados(){
     if(base && r.base !== base) return false;
     if(leit && r.matricula !== leit) return false;
     if(rz   && r.rz !== rz) return false;
-    if(respFiltro === 'GBS'   && r.responsabilidade !== 'GBS')   return false;
-    if(respFiltro === 'CEMIG' && r.responsabilidade !== 'CEMIG') return false;
+    const resp = (r.responsabilidade||'').toUpperCase();
+    if(respFiltro === 'GBS'   && resp !== 'GBS')   return false;
+    if(respFiltro === 'CEMIG' && resp !== 'CEMIG') return false;
     return true;
   });
 }
@@ -379,8 +380,8 @@ function renderPainel(){
 
   // KPIs — leituras totais vêm da tabela jornada (mesmo mês/base)
   const qtdImp = dados.length;
-  const qtdGbs = dados.filter(r=>r.responsabilidade==='GBS').length;
-  const qtdCemig = dados.filter(r=>r.responsabilidade==='CEMIG').length;
+  const qtdGbs = dados.filter(r=>(r.responsabilidade||'').toUpperCase()==='GBS').length;
+  const qtdCemig = dados.filter(r=>(r.responsabilidade||'').toUpperCase()==='CEMIG').length;
 
   // Para o total de leituras, buscamos da tabela jornada
   buscarTotalLeituras(base, rz, leit).then(total => {
@@ -399,36 +400,39 @@ async function buscarTotalLeituras(base, rz, leit){
   const mes = document.getElementById('f-mes').value;
   if(!mes) return 0;
   const [mm,aa] = mes.split('/');
-  const mes_ref_rz = `${aa}-${mm}`;          // formato para totais_rz: yyyy-mm
   const di = `${aa}-${mm}-01`;
   const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
 
-  // Se filtrou por leiturista, usa jornada (totais_rz não tem granularidade por mat)
+  // Se filtrou por leiturista, usa jornada
   if(leit){
-    let listamat = [leit];
-    let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df).in('matricula', listamat);
+    let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df).in('matricula',[leit]);
     if(rz) q = q.eq('rz', rz);
     const {data} = await q;
     return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
   }
 
-  // Sem filtro de leiturista: usa totais_rz (total real do arquivo)
-  let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref_rz);
-  if(rz) q = q.eq('rz', rz);
-  const {data:totais} = await q;
-  if(!totais||!totais.length) return 0;
+  // Tenta yyyy-mm primeiro, depois yyyy-mm-01
+  for(const mes_ref of [`${aa}-${mm}`, `${aa}-${mm}-01`]){
+    let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref);
+    if(rz) q = q.eq('rz', rz);
+    const {data:totais} = await q;
+    if(!totais||!totais.length) continue;
 
-  // Se filtrou por base, precisa filtrar os RZs que pertencem à base
-  if(base){
-    const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
-    if(!mats||!mats.length) return 0;
-    const listamat = mats.map(m=>m.matricula);
-    const {data:jorn} = await sb.from('jornada').select('rz,qtd_leituras')
-      .gte('data',di).lte('data',df).in('matricula', listamat);
-    return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+    if(base){
+      const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
+      if(!mats||!mats.length) return 0;
+      const listamat = mats.map(m=>m.matricula);
+      const {data:jorn} = await sb.from('jornada').select('rz,qtd_leituras')
+        .gte('data',di).lte('data',df).in('matricula', listamat);
+      return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+    }
+
+    return totais.reduce((a,r)=>a+(r.total_leituras||0),0);
   }
 
-  return totais.reduce((a,r)=>a+(r.total_leituras||0),0);
+  // Fallback: soma direto da jornada
+  const {data:jorn} = await sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
+  return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
 }
 
 function renderGraficos(dados){
