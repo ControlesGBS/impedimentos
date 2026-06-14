@@ -18,8 +18,10 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .nav button{background:none;border:none;color:#90c090;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:13px}
 .nav button.ativo{background:#2d7a2d;color:#fff}
 .nav button:hover:not(.ativo){background:#1a4a1a}
-.pag{display:none;padding:16px 20px}
+.pag{display:none;padding:0}
 .pag.ativo{display:block}
+#pag-admin.ativo{padding:16px 20px}
+#pag-acertadas.ativo{display:block}
 
 /* FILTROS */
 .filtros{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;margin-bottom:12px}
@@ -58,7 +60,13 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 .pagination button:disabled{opacity:.4;cursor:not-allowed}
 .pagination span{font-size:12px;color:#4a7a4a}
 
-/* ADMIN */
+/* PAINEL CONGELADO */
+.pag-painel-inner{display:flex;flex-direction:column;height:calc(100vh - 90px);padding:16px 20px;gap:10px;overflow:hidden}
+.painel-topo{flex-shrink:0}
+.painel-tabela{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.painel-tabela .twrap{flex:1;overflow:hidden;display:flex;flex-direction:column;border-radius:8px;border:0.5px solid #c0dcc0;background:#fff}
+.painel-tabela .twrap .tabela-scroll{flex:1;overflow-y:auto;overflow-x:auto}
+
 .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
 .card{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:20px}
 .card h3{font-size:14px;font-weight:500;color:#1a4a1a;margin-bottom:4px}
@@ -90,11 +98,14 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 <div class="nav">
   <button onclick="location.href='https://gbsservicos.com/controles/teste/index.html'" title="Voltar ao Portal" style="font-size:16px;padding:6px 12px">🏠</button>
   <button class="ativo" onclick="irPara('painel',this)">Painel</button>
+  <button onclick="irPara('acertadas',this)">Acertadas</button>
   <button onclick="irPara('admin',this)">Administração</button>
 </div>
 
 <!-- PAINEL -->
 <div class="pag ativo" id="pag-painel">
+<div class="pag-painel-inner">
+  <div class="painel-topo">
   <div class="filtros">
     <div>
       <label>Mês/Ano</label>
@@ -143,13 +154,15 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <div class="chart-wrap-tall"><canvas id="chart-leit"></canvas></div>
     </div>
   </div>
+  </div><!-- fim painel-topo -->
 
+  <div class="painel-tabela">
   <div class="twrap">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;cursor:pointer" onclick="toggleTabela(this)">
       <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Impedimentos</span>
       <span id="tabela-toggle-icon" style="color:#90c090;font-size:16px">&#9650;</span>
     </div>
-    <div id="tabela-body-wrap">
+    <div id="tabela-body-wrap" class="tabela-scroll">
     <table>
       <thead><tr>
         <th>Base</th>
@@ -168,6 +181,50 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
     <div class="pagination" id="pagination"></div>
     </div>
   </div>
+  </div><!-- fim painel-tabela -->
+</div><!-- fim pag-painel-inner -->
+</div>
+
+<!-- ACERTADAS -->
+<div class="pag" id="pag-acertadas">
+<div class="pag-painel-inner">
+  <div class="painel-topo">
+  <div class="filtros">
+    <div>
+      <label>Mês/Ano</label>
+      <select id="ac-mes" onchange="carregarAcertadas()"></select>
+    </div>
+  </div>
+
+  <div class="kpis" id="ac-kpis">
+    <div class="kpi"><div class="kpi-label">Total Acertadas</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Impedimentos no Mês</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">OC Mais Frequente</div><div class="kpi-value">—</div></div>
+  </div>
+  </div>
+
+  <div class="painel-tabela">
+  <div class="twrap">
+    <div style="padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Acertadas</span>
+      <span id="ac-count" style="font-size:11px;color:#90c090"></span>
+    </div>
+    <div class="tabela-scroll">
+    <table>
+      <thead><tr>
+        <th>Instalação</th>
+        <th>Reg.</th>
+        <th>UL</th>
+        <th>OC Original</th>
+        <th>OC Acertada</th>
+      </tr></thead>
+      <tbody id="ac-tbody"><tr><td colspan="5" class="status-msg">Selecione um mês.</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+  </div>
+</div>
 </div>
 
 <!-- ADMIN -->
@@ -265,12 +322,14 @@ async function iniciar(){
 
   // Meses
   const sel = document.getElementById('f-mes');
+  const selAc = document.getElementById('ac-mes');
   const hoje = new Date();
   for(let i=0;i<12;i++){
     const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
     const mm = String(d.getMonth()+1).padStart(2,'0');
     const val = `${mm}/${d.getFullYear()}`;
     sel.innerHTML += `<option value="${val}">${val}</option>`;
+    selAc.innerHTML += `<option value="${val}">${val}</option>`;
   }
 
   // Filtro de base — travar se supervisor
@@ -721,6 +780,57 @@ async function verificarGatilhosImpedimentos(mesStr, dadosFilt){
       );
     }
   }
+}
+
+// ── ACERTADAS ────────────────────────────────────────────────────
+async function carregarAcertadas(){
+  const mes = document.getElementById('ac-mes').value;
+  if(!mes) return;
+  const [mm,aa] = mes.split('/');
+  const mesStr = `${aa}-${mm}`;
+
+  document.getElementById('ac-tbody').innerHTML = '<tr><td colspan="5" class="status-msg">Carregando...</td></tr>';
+
+  // Buscar acertadas do mês
+  const {data:acert} = await sb.from('leituras_acertadas').select('*').eq('mes_ref', mesStr).order('instalacao');
+
+  // Buscar total impedimentos do mês para % resolvidos
+  const dataInicio = `${mesStr}-01`;
+  const diasNoMes = new Date(parseInt(aa), parseInt(mm), 0).getDate();
+  const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
+  const {count:totalImp} = await sb.from('impedimentos').select('*', {count:'exact',head:true})
+    .gte('data',dataInicio).lte('data',dataFim);
+
+  const lista = acert||[];
+  const total = lista.length;
+  const pct = totalImp ? Math.round(total/totalImp*100) : 0;
+
+  // OC mais frequente
+  const ocCount = {};
+  lista.forEach(r=>{ const oc=r.oc_original||'—'; ocCount[oc]=(ocCount[oc]||0)+1; });
+  const ocMaisFreq = Object.entries(ocCount).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+
+  document.getElementById('ac-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total Acertadas</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Impedimentos no Mês</div><div class="kpi-value">${(totalImp||0).toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">${pct}%</div></div>
+    <div class="kpi"><div class="kpi-label">OC Mais Frequente</div><div class="kpi-value" style="font-size:18px">${ocMaisFreq}</div></div>`;
+
+  document.getElementById('ac-count').textContent = `${total} registro(s)`;
+
+  if(!lista.length){
+    document.getElementById('ac-tbody').innerHTML = '<tr><td colspan="5" class="status-msg">Nenhuma leitura acertada encontrada.</td></tr>';
+    return;
+  }
+
+  document.getElementById('ac-tbody').innerHTML = lista.map(r=>`
+    <tr>
+      <td>${r.instalacao||'—'}</td>
+      <td>${r.reg||'—'}</td>
+      <td>${r.ul||'—'}</td>
+      <td><span class="badge-cemig">${r.oc_original||'—'}</span></td>
+      <td><span class="badge-gbs">${r.oc_acertada||'—'}</span></td>
+    </tr>`).join('');
 }
 
 iniciar();
