@@ -192,9 +192,8 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <select id="ac-mes" onchange="carregarAcertadas()"></select>
     </div>
   </div>
-  <div class="kpis" id="ac-kpis" style="margin-bottom:0;padding-bottom:10px">
+  <div class="kpis" id="ac-kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0;padding-bottom:10px">
     <div class="kpi"><div class="kpi-label">Total Acertadas</div><div class="kpi-value">—</div></div>
-    <div class="kpi"><div class="kpi-label">Impedimentos no Mês</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">OC Mais Frequente</div><div class="kpi-value">—</div></div>
   </div>
@@ -206,11 +205,11 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   <div style="background:#1a4a1a;overflow-x:auto">
   <table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr>
-      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Instalação</th>
-      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Reg.</th>
-      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">UL</th>
-      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">OC Original</th>
-      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap">OC Acertada</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Instalação</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Reg.</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">UL</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">OC Original</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap">OC Acertada</th>
     </tr></thead>
   </table>
   </div>
@@ -815,7 +814,6 @@ async function carregarAcertadas(){
 
   document.getElementById('ac-kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Total Acertadas</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
-    <div class="kpi"><div class="kpi-label">Impedimentos no Mês</div><div class="kpi-value">${(totalImp||0).toLocaleString('pt-BR')}</div></div>
     <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">${pct}%</div></div>
     <div class="kpi"><div class="kpi-label">OC Mais Frequente</div><div class="kpi-value" style="font-size:18px">${ocMaisFreq}</div></div>`;
 
@@ -828,11 +826,11 @@ async function carregarAcertadas(){
 
   document.getElementById('ac-tbody').innerHTML = lista.map(r=>`
     <tr>
-      <td>${r.instalacao||'—'}</td>
-      <td>${r.reg||'—'}</td>
-      <td>${r.ul||'—'}</td>
-      <td><span class="badge-cemig">${r.oc_original||'—'}</span></td>
-      <td><span class="badge-gbs">${r.oc_acertada||'—'}</span></td>
+      <td style="text-align:center">${r.instalacao||'—'}</td>
+      <td style="text-align:center">${r.reg||'—'}</td>
+      <td style="text-align:center">${r.ul||'—'}</td>
+      <td style="text-align:center"><span class="badge-cemig">${r.oc_original||'—'}</span></td>
+      <td style="text-align:center"><span class="badge-gbs">${r.oc_acertada||'—'}</span></td>
     </tr>`).join('');
 }
 
