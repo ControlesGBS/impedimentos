@@ -198,22 +198,27 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
     <div class="kpi"><div class="kpi-label">% Resolvidos</div><div class="kpi-value">—</div></div>
     <div class="kpi"><div class="kpi-label">OC Mais Frequente</div><div class="kpi-value">—</div></div>
   </div>
+  <!-- Faixa verde congelada -->
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;margin:0 0 0 0">
+    <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Acertadas</span>
+    <span id="ac-count" style="font-size:11px;color:#90c090"></span>
   </div>
+  <div style="background:#1a4a1a;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Instalação</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">Reg.</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">UL</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d">OC Original</th>
+      <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:left;font-size:11px;white-space:nowrap">OC Acertada</th>
+    </tr></thead>
+  </table>
+  </div>
+  </div><!-- fim painel-topo -->
 
-  <div class="painel-scroll">
-  <div class="twrap">
-    <div style="padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
-      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Acertadas</span>
-      <span id="ac-count" style="font-size:11px;color:#90c090"></span>
-    </div>
-    <table>
-      <thead><tr>
-        <th>Instalação</th>
-        <th>Reg.</th>
-        <th>UL</th>
-        <th>OC Original</th>
-        <th>OC Acertada</th>
-      </tr></thead>
+  <div class="painel-scroll" style="padding-top:0">
+  <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;background:#fff">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
       <tbody id="ac-tbody"><tr><td colspan="5" class="status-msg">Selecione um mês.</td></tr></tbody>
     </table>
   </div>
@@ -796,8 +801,10 @@ async function carregarAcertadas(){
   const dataInicio = `${mesStr}-01`;
   const diasNoMes = new Date(parseInt(aa), parseInt(mm), 0).getDate();
   const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
-  const {count:totalImp} = await sb.from('impedimentos').select('*', {count:'exact',head:true})
+  const {count:totalImpBruto} = await sb.from('impedimentos').select('*', {count:'exact',head:true})
     .gte('data',dataInicio).lte('data',dataFim);
+  // Descontar acertadas para bater com a tela de impedimentos
+  const totalImp = Math.max(0, (totalImpBruto||0) - total);
 
   const lista = acert||[];
   const total = lista.length;
