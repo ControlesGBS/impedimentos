@@ -40,11 +40,13 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 
 /* GRAFICOS */
 .graficos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.graficos-row2{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px}
 .grafico-card{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:14px}
 .grafico-card h3{font-size:12px;font-weight:500;color:#1a4a1a;text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:.3px}
-.grafico-card.local-scroll{overflow-y:auto;max-height:320px}
+.grafico-card.full{grid-column:1/-1}
 .chart-wrap{position:relative;height:200px}
 .chart-wrap-tall{position:relative;height:260px}
+.chart-wrap-leit{position:relative;height:320px}
 
 /* TABELA */
 .twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
@@ -149,9 +151,11 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <h3>Impedimentos por Local</h3>
       <div class="chart-wrap" id="chart-local-wrap"><canvas id="chart-local"></canvas></div>
     </div>
-    <div class="grafico-card full">
+  </div>
+  <div style="margin-bottom:12px">
+    <div class="grafico-card">
       <h3>Impedimentos por Leiturista</h3>
-      <div class="chart-wrap-tall"><canvas id="chart-leit"></canvas></div>
+      <div class="chart-wrap-leit"><canvas id="chart-leit"></canvas></div>
     </div>
   </div>
 
@@ -497,27 +501,29 @@ async function buscarTotalLeituras(base, rz, leit){
 }
 
 function renderGraficos(dados){
-  // % por base (só GBS)
+  // % por base (só GBS) — agrupa por base
   const porBase = {};
-  dados.filter(r=>(r.responsabilidade||'').toUpperCase()==='GBS').forEach(r=>{
+  dados.filter(r=>r.responsabilidade==='GBS').forEach(r=>{
     if(!r.base) return;
     porBase[r.base] = (porBase[r.base]||0) + 1;
   });
+
+  // Total leituras por base (do banco jornada — simplificado, vamos usar do dadosRaw para proporção)
   const totalPorBase = {};
   dadosRaw.forEach(r=>{ if(r.base) totalPorBase[r.base]=(totalPorBase[r.base]||0)+1; });
+
   const basesLabel = Object.keys(porBase).sort((a,b)=>(porBase[b]||0)-(porBase[a]||0));
-  const pctBase = basesLabel.map(b => parseFloat(((porBase[b]||0)/(totalPorBase[b]||1)*100).toFixed(2)));
+  const pctBase = basesLabel.map(b => {
+    const tot = totalPorBase[b]||1;
+    return ((porBase[b]||0)/tot*100).toFixed(2);
+  });
 
   if(chartBase) chartBase.destroy();
   chartBase = new Chart(document.getElementById('chart-base'), {
     type:'bar',
     data:{
       labels: basesLabel,
-      datasets:[{
-        label:'% Imp. GBS',
-        data:pctBase,
-        backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1
-      }]
+      datasets:[{label:'% Imp. GBS', data:pctBase.map(v=>parseFloat(v)), backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1}]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
@@ -525,39 +531,25 @@ function renderGraficos(dados){
         legend:{display:false},
         tooltip:{callbacks:{
           title:([c])=>c.label,
-          label:c=>[
-            `% GBS: ${c.raw}%`,
-            `Imp. GBS: ${porBase[c.label]||0}`,
-            `Total imp.: ${totalPorBase[c.label]||0}`,
-            `Meta: 0,30%`
-          ]
+          label:c=>[`% GBS: ${c.raw}%`,`Imp. GBS: ${porBase[c.label]||0}`,`Total imp.: ${totalPorBase[c.label]||0}`,`Meta: 0,30%`]
         }},
         datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}, formatter:v=>`${v}%`},
-        annotation:{
-          annotations:{
-            meta:{
-              type:'line', yMin:0.30, yMax:0.30,
-              borderColor:'#dc2626', borderWidth:2, borderDash:[6,4],
-              label:{content:'Meta 0,30%', display:true, position:'end', color:'#dc2626', font:{size:10,weight:'600'}, backgroundColor:'rgba(255,255,255,0.8)'}
-            }
-          }
-        }
+        annotation:{annotations:{meta:{
+          type:'line', yMin:0.30, yMax:0.30,
+          borderColor:'#000000', borderWidth:2, borderDash:[6,4],
+          label:{content:'Meta 0,30%', display:true, position:'end', color:'#000000', font:{size:10,weight:'600'}, backgroundColor:'rgba(255,255,255,0.85)'}
+        }}}
       },
-      scales:{
-        y:{
-          ticks:{callback:v=>`${v}%`}, beginAtZero:true,
-          grace:'15%'
-        }
-      }
+      scales:{y:{ticks:{callback:v=>`${v}%`}, beginAtZero:true, suggestedMax: Math.max(...pctBase.map(v=>parseFloat(v)), 0.30) * 1.4, grace:'20%'}}
     }
   });
 
-  // Por local — TODOS, com scroll
+  // Por local — TODOS com scroll
   const porLocal = {};
   dados.forEach(r=>{ if(r.cidade) porLocal[r.cidade]=(porLocal[r.cidade]||0)+1; });
   const locaisAll = Object.entries(porLocal).sort((a,b)=>b[1]-a[1]);
-  const alturaLocal = Math.max(200, locaisAll.length * 28);
-  document.getElementById('chart-local-wrap').style.height = alturaLocal + 'px';
+  const wrapLocal = document.getElementById('chart-local-wrap');
+  if(wrapLocal) wrapLocal.style.height = Math.max(200, locaisAll.length * 28) + 'px';
 
   if(chartLocal) chartLocal.destroy();
   chartLocal = new Chart(document.getElementById('chart-local'), {
@@ -577,10 +569,10 @@ function renderGraficos(dados){
     }
   });
 
-  // Por leiturista (top 15)
+  // Por leiturista — top 25
   const porLeit = {};
   dados.forEach(r=>{ if(r.matricula) porLeit[r.matricula]=(porLeit[r.matricula]||0)+1; });
-  const leitsTop = Object.entries(porLeit).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const leitsTop = Object.entries(porLeit).sort((a,b)=>b[1]-a[1]).slice(0,25);
 
   if(chartLeit) chartLeit.destroy();
   chartLeit = new Chart(document.getElementById('chart-leit'), {
