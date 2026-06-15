@@ -797,18 +797,17 @@ async function carregarAcertadas(){
     if(data && data.length){ acert = data; break; }
   }
 
+  const lista = acert||[];
+  const total = lista.length;
+
   // Buscar total impedimentos do mês
   const dataInicio = `${mesStr}-01`;
   const diasNoMes = new Date(parseInt(aa), parseInt(mm), 0).getDate();
   const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
   const {count:totalImpBruto} = await sb.from('impedimentos').select('*', {count:'exact',head:true})
     .gte('data',dataInicio).lte('data',dataFim);
-  // Descontar acertadas para bater com a tela de impedimentos
   const totalImp = Math.max(0, (totalImpBruto||0) - total);
-
-  const lista = acert||[];
-  const total = lista.length;
-  const pct = totalImp ? Math.round(total/totalImp*100) : 0;
+  const pct = totalImpBruto ? Math.round(total/totalImpBruto*100) : 0;
 
   const ocCount = {};
   lista.forEach(r=>{ const oc=r.oc_original||'—'; ocCount[oc]=(ocCount[oc]||0)+1; });
