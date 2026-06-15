@@ -155,9 +155,12 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   </div>
 
   <div class="twrap">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0;cursor:pointer" onclick="toggleTabela(this)">
-      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Impedimentos</span>
-      <span id="tabela-toggle-icon" style="color:#90c090;font-size:16px">&#9650;</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0">
+      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;cursor:pointer" onclick="toggleTabela(this.closest('div'))">&#9776; Lista de Impedimentos</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="baixarImpedimentos()" style="background:#2d7a2d;border:none;color:#fff;padding:3px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:500">⬇ Baixar xlsx</button>
+        <span id="tabela-toggle-icon" style="color:#90c090;font-size:16px;cursor:pointer" onclick="toggleTabela(this.closest('div'))">&#9650;</span>
+      </div>
     </div>
     <div id="tabela-body-wrap">
     <table>
@@ -832,6 +835,22 @@ async function carregarAcertadas(){
       <td style="text-align:center"><span class="badge-cemig">${r.oc_original||'—'}</span></td>
       <td style="text-align:center"><span class="badge-gbs">${r.oc_acertada||'—'}</span></td>
     </tr>`).join('');
+}
+
+function baixarImpedimentos(){
+  const dados = dadosFiltrados();
+  if(!dados.length){ alert('Nenhum dado para baixar.'); return; }
+  const mes = document.getElementById('f-mes').value || 'impedimentos';
+  const cab = ['Base','Leiturista','RZ','UL','Instalação','Medidor','Reg.','Ocorrência','Endereço','Qtd. Digitação','Responsabilidade'];
+  const linhas = dados.map(r=>[
+    r.base||'', r.matricula||'', r.rz||'', r.ul||'',
+    r.instalacao||'', r.medidor||'', r.reg||'', r.ocorrencia||'',
+    r.endereco||'', r.qtd_digitacao||'', r.responsabilidade||''
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([cab, ...linhas]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Impedimentos');
+  XLSX.writeFile(wb, `Impedimentos_${mes.replace('/','_')}.xlsx`);
 }
 
 iniciar();
