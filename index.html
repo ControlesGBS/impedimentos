@@ -43,7 +43,7 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .graficos-row2{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px}
 .grafico-card{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:14px}
 .grafico-card h3{font-size:12px;font-weight:500;color:#1a4a1a;text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:.3px}
-.grafico-card.local-scroll{overflow-y:auto;max-height:420px}
+.grafico-card.local-scroll{overflow-y:auto;max-height:260px}
 .grafico-card.full{grid-column:1/-1}
 .chart-wrap{position:relative;height:200px}
 .chart-wrap-tall{position:relative;height:260px}
@@ -534,14 +534,16 @@ function renderGraficos(dados){
           title:([c])=>c.label,
           label:c=>[`% GBS: ${c.raw}%`,`Imp. GBS: ${porBase[c.label]||0}`,`Total imp.: ${totalPorBase[c.label]||0}`,`Meta: 0,30%`]
         }},
-        datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}, formatter:v=>`${v}%`},
-        annotation:{annotations:{meta:{
-          type:'line', yMin:0.30, yMax:0.30,
-          borderColor:'#000000', borderWidth:2, borderDash:[6,4],
-          label:{content:'Meta 0,30%', display:true, position:'end', color:'#000000', font:{size:10,weight:'600'}, backgroundColor:'rgba(255,255,255,0.85)'}
-        }}}
+        datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}, formatter:v=>`${v}%`}
       },
-      scales:{y:{ticks:{callback:v=>`${v}%`}, beginAtZero:true, suggestedMax: Math.max(...pctBase.map(v=>parseFloat(v)), 0.30) * 2.2, grace:'5%'}}
+      scales:{y:{
+        type:'logarithmic',
+        ticks:{callback:v=>{
+          const vals=[0.1,0.3,1,3,10,30,50,100];
+          return vals.includes(v)?`${v}%`:'';
+        }},
+        min:0.05
+      }}
     }
   });
 
