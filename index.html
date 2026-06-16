@@ -478,19 +478,23 @@ async function buscarTotalLeituras(base, rz, leit){
   const mes = document.getElementById('f-mes').value;
   if(!mes) return 0;
   const [mm,aa] = mes.split('/');
-  const di = `${aa}-${mm}-01`;
-  const df = `${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  // Usa mes_ref do cabecalho (igual ao gravado na jornada), nao filtra por data da leitura
+  // pois leituristas podem comecar antes ou terminar depois do mes
+  const mesRefs = [`${aa}-${mm}-01`, `${aa}-${mm}`];
 
-  // Se filtrou por leiturista, usa jornada
+  // Se filtrou por leiturista, usa jornada pelo mes_ref
   if(leit){
-    let q = sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df).in('matricula',[leit]);
-    if(rz) q = q.eq('rz', rz);
-    const {data} = await q;
-    return (data||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+    for(const mes_ref of mesRefs){
+      let q = sb.from('jornada').select('qtd_leituras').eq('mes_ref', mes_ref).in('matricula',[leit]);
+      if(rz) q = q.eq('rz', rz);
+      const {data} = await q;
+      if(data&&data.length) return data.reduce((a,r)=>a+(r.qtd_leituras||0),0);
+    }
+    return 0;
   }
 
-  // Tenta yyyy-mm primeiro, depois yyyy-mm-01
-  for(const mes_ref of [`${aa}-${mm}`, `${aa}-${mm}-01`]){
+  // Tenta totais_rz primeiro (mais preciso, vem do cabecalho)
+  for(const mes_ref of mesRefs){
     let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref);
     if(rz) q = q.eq('rz', rz);
     const {data:totais} = await q;
@@ -500,17 +504,22 @@ async function buscarTotalLeituras(base, rz, leit){
       const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
       if(!mats||!mats.length) return 0;
       const listamat = mats.map(m=>m.matricula);
-      const {data:jorn} = await sb.from('jornada').select('rz,qtd_leituras')
-        .gte('data',di).lte('data',df).in('matricula', listamat);
+      let qj = sb.from('jornada').select('qtd_leituras').eq('mes_ref', mes_ref).in('matricula', listamat);
+      if(rz) qj = qj.eq('rz', rz);
+      const {data:jorn} = await qj;
       return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
     }
 
     return totais.reduce((a,r)=>a+(r.total_leituras||0),0);
   }
 
-  // Fallback: soma direto da jornada
-  const {data:jorn} = await sb.from('jornada').select('qtd_leituras').gte('data',di).lte('data',df);
-  return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
+  // Fallback: soma direto da jornada pelo mes_ref
+  for(const mes_ref of mesRefs){
+    let q = sb.from('jornada').select('qtd_leituras').eq('mes_ref', mes_ref);
+    const {data:jorn} = await q;
+    if(jorn&&jorn.length) return jorn.reduce((a,r)=>a+(r.qtd_leituras||0),0);
+  }
+  return 0;
 }
 
 async function renderGraficos(dados){
