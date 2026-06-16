@@ -348,6 +348,8 @@ async function iniciar(){
     sel.innerHTML += `<option value="${val}">${val}</option>`;
     selAc.innerHTML += `<option value="${val}">${val}</option>`;
   }
+  if(sel.options.length>0) sel.selectedIndex=0;
+  if(selAc.options.length>0) selAc.selectedIndex=0;
 
   // Filtro de base — travar se supervisor
   const selBase=document.getElementById('f-base');
