@@ -379,15 +379,22 @@ async function carregarDados(){
 
   document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
 
-  // Buscar impedimentos do banco
-  const diasNoMes = new Date(parseInt(mesStr.split('-')[0]), parseInt(mesStr.split('-')[1]), 0).getDate();
-  const dataInicio = `${mesStr}-01`;
-  const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
+  // Buscar impedimentos do banco por mes_ref (vem do cabeçalho do arquivo, não da data da leitura)
+  const mesStr01 = `${aa}-${mm}-01`;
   let imps = [], _from = 0, LOTE = 1000;
+  // Tenta mes_ref formato yyyy-mm-01 primeiro, depois yyyy-mm
+  let mesRefUsado = mesStr01;
+  {
+    const {data:teste} = await sb.from('impedimentos').select('instalacao').eq('mes_ref', mesStr01).limit(1);
+    if(!teste||!teste.length){
+      const {data:teste2} = await sb.from('impedimentos').select('instalacao').eq('mes_ref', mesStr).limit(1);
+      if(teste2&&teste2.length) mesRefUsado = mesStr;
+    }
+  }
   while(true){
     let q=sb.from('impedimentos')
       .select('*')
-      .gte('data', dataInicio).lte('data', dataFim)
+      .eq('mes_ref', mesRefUsado)
       .order('base').order('matricula').order('data')
       .range(_from, _from + LOTE - 1);
     const baseF=PERFIL_BASE||document.getElementById('f-base').value;
@@ -902,12 +909,12 @@ async function carregarAcertadas(){
   const lista = acert||[];
   const total = lista.length;
 
-  // Buscar total impedimentos do mês
-  const dataInicio = `${mesStr}-01`;
-  const diasNoMes = new Date(parseInt(aa), parseInt(mm), 0).getDate();
-  const dataFim = `${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
-  const {count:totalImpBruto} = await sb.from('impedimentos').select('*', {count:'exact',head:true})
-    .gte('data',dataInicio).lte('data',dataFim);
+  // Buscar total impedimentos do mês por mes_ref (cabeçalho do arquivo)
+  let totalImpBruto = 0;
+  for(const fmt of [`${mesStr}-01`, mesStr]){
+    const {count} = await sb.from('impedimentos').select('*', {count:'exact',head:true}).eq('mes_ref', fmt);
+    if(count){ totalImpBruto = count; break; }
+  }
   const totalImp = Math.max(0, (totalImpBruto||0) - total);
   const pct = totalImpBruto ? Math.round(total/totalImpBruto*100) : 0;
 
