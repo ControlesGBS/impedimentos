@@ -598,6 +598,14 @@ function renderGraficos(dados){
   dados.forEach(r=>{ if(r.matricula) porLeit[r.matricula]=(porLeit[r.matricula]||0)+1; });
   const leitsTop = Object.entries(porLeit).sort((a,b)=>b[1]-a[1]).slice(0,25);
 
+  // Buscar dados de matrícula para o tooltip
+  const matsIds = leitsTop.map(l=>l[0]);
+  const {data:matsInfo} = await sb.from('matriculas')
+    .select('matricula,nome_leiturista,base,funcao,data_admissao')
+    .in('matricula', matsIds);
+  const matsMap = {};
+  (matsInfo||[]).forEach(m=>{ matsMap[m.matricula]=m; });
+
   if(chartLeit) chartLeit.destroy();
   chartLeit = new Chart(document.getElementById('chart-leit'), {
     type:'bar',
@@ -609,7 +617,27 @@ function renderGraficos(dados){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:c=>`Impedimentos: ${c.raw}`}},
+        tooltip:{
+          callbacks:{
+            title:([ctx])=>{
+              const mat=leitsTop[ctx.dataIndex][0];
+              const m=matsMap[mat];
+              return m?.nome_leiturista?`${mat} — ${m.nome_leiturista}`:mat;
+            },
+            label:ctx=>{
+              const mat=leitsTop[ctx.dataIndex][0];
+              const m=matsMap[mat];
+              const lines=[`Impedimentos: ${ctx.raw}`];
+              if(m?.base) lines.push(`Base: ${m.base}`);
+              if(m?.funcao) lines.push(`Função: ${m.funcao}`);
+              if(m?.data_admissao){
+                const d=new Date(m.data_admissao+'T12:00:00');
+                lines.push(`Admissão: ${d.toLocaleDateString('pt-BR')}`);
+              }
+              return lines;
+            }
+          }
+        },
         datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}}
       },
       scales:{y:{beginAtZero:true, grace:'15%'}}
