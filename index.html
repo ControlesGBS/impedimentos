@@ -513,7 +513,7 @@ async function buscarTotalLeituras(base, rz, leit){
   return (jorn||[]).reduce((a,r)=>a+(r.qtd_leituras||0),0);
 }
 
-function renderGraficos(dados){
+async function renderGraficos(dados){
   // % por base (só GBS) — agrupa por base
   const porBase = {};
   dados.filter(r=>r.responsabilidade==='GBS').forEach(r=>{
