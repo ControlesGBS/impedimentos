@@ -922,7 +922,7 @@ async function carregarAcertadas(){
 
   // Se for supervisor com base definida, filtra pelas instalacao+reg da base (via impedimentos)
   if(PERFIL_BASE && lista.length){
-    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', mesRefUsado).filter('base','ilike',PERFIL_BASE);
+    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', `${mesStr}-01`).filter('base','ilike',PERFIL_BASE);
     const chaveSet = new Set((instBase||[]).map(r=>`${r.instalacao}|${r.reg}`));
     lista = lista.filter(r=>chaveSet.has(`${r.instalacao}|${r.reg}`));
   }
