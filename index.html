@@ -529,8 +529,9 @@ async function buscarTotalLeituras(base, rz, leit){
     if(!totais||!totais.length) continue;
 
     if(base){
-      const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
-      console.log('buscarTotalLeituras base:', base, 'mats:', mats?.length, mats?.map(m=>m.matricula));
+      // busca case-insensitive sem ilike (Supabase nao aceita ilike com espacos na URL)
+      const {data:allMats} = await sb.from('matriculas').select('matricula,base');
+      const mats = (allMats||[]).filter(m=>(m.base||'').toLowerCase()===base.toLowerCase());
       if(!mats||!mats.length) return 0;
       const filtros = {mes_ref, matricula: mats.map(m=>m.matricula)};
       if(rz) filtros.rz = rz;
