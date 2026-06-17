@@ -920,11 +920,11 @@ async function carregarAcertadas(){
 
   let lista = acert||[];
 
-  // Se for supervisor com base definida, filtra pelas ULs da base (via impedimentos)
+  // Se for supervisor com base definida, filtra pelas instalacao+reg da base (via impedimentos)
   if(PERFIL_BASE && lista.length){
-    const {data:ulsBase} = await sb.from('impedimentos').select('ul').eq('mes_ref', mesRefUsado).filter('base','ilike',PERFIL_BASE);
-    const ulsSet = new Set((ulsBase||[]).map(r=>r.ul));
-    lista = lista.filter(r=>ulsSet.has(r.ul));
+    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', mesRefUsado).filter('base','ilike',PERFIL_BASE);
+    const chaveSet = new Set((instBase||[]).map(r=>`${r.instalacao}|${r.reg}`));
+    lista = lista.filter(r=>chaveSet.has(`${r.instalacao}|${r.reg}`));
   }
 
   const total = lista.length;
