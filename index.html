@@ -531,11 +531,9 @@ async function buscarTotalLeituras(base, rz, leit){
       // busca case-insensitive sem ilike (Supabase nao aceita ilike com espacos na URL)
       const {data:allMats} = await sb.from('matriculas').select('matricula,base');
       const mats = (allMats||[]).filter(m=>(m.base||'').toLowerCase()===base.toLowerCase());
-      console.log('base:', base, 'mats encontradas:', mats.length, mats.map(m=>m.matricula));
       if(!mats||!mats.length) return 0;
       const filtros = {mes_ref, matricula: mats.map(m=>m.matricula)};
       if(rz) filtros.rz = rz;
-      console.log('filtros somarJornada:', filtros);
       return await somarJornada(filtros);
     }
 
@@ -548,6 +546,12 @@ async function buscarTotalLeituras(base, rz, leit){
     if(!teste||!teste.length) continue;
     const filtros = {mes_ref};
     if(rz) filtros.rz = rz;
+    if(base){
+      const {data:allMats} = await sb.from('matriculas').select('matricula,base');
+      const mats = (allMats||[]).filter(m=>(m.base||'').toLowerCase()===base.toLowerCase());
+      if(!mats||!mats.length) return 0;
+      filtros.matricula = mats.map(m=>m.matricula);
+    }
     return await somarJornada(filtros);
   }
   return 0;
@@ -907,14 +911,22 @@ async function carregarAcertadas(){
 
   // Tentar os dois formatos de mes_ref
   let acert = null;
+  let mesRefUsado = mesStr;
   for(const fmt of [mesStr, `${mesStr}-01`]){
     let q = sb.from('leituras_acertadas').select('*').eq('mes_ref', fmt).order('instalacao');
-    if(PERFIL_BASE) q = q.filter('base','ilike',PERFIL_BASE);
     const {data} = await q;
-    if(data && data.length){ acert = data; break; }
+    if(data && data.length){ acert = data; mesRefUsado = fmt; break; }
   }
 
-  const lista = acert||[];
+  let lista = acert||[];
+
+  // Se for supervisor com base definida, filtra pelas ULs da base (via impedimentos)
+  if(PERFIL_BASE && lista.length){
+    const {data:ulsBase} = await sb.from('impedimentos').select('ul').eq('mes_ref', mesRefUsado).filter('base','ilike',PERFIL_BASE);
+    const ulsSet = new Set((ulsBase||[]).map(r=>r.ul));
+    lista = lista.filter(r=>ulsSet.has(r.ul));
+  }
+
   const total = lista.length;
 
   // Buscar total impedimentos do mês por mes_ref (cabeçalho do arquivo)
