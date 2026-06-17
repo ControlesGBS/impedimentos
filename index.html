@@ -530,6 +530,7 @@ async function buscarTotalLeituras(base, rz, leit){
 
     if(base){
       const {data:mats} = await sb.from('matriculas').select('matricula').ilike('base', base);
+      console.log('buscarTotalLeituras base:', base, 'mats:', mats?.length, mats?.map(m=>m.matricula));
       if(!mats||!mats.length) return 0;
       const filtros = {mes_ref, matricula: mats.map(m=>m.matricula)};
       if(rz) filtros.rz = rz;
