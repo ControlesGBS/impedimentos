@@ -408,7 +408,6 @@ async function carregarDados(){
 
   // Buscar acertadas do mês
   let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
-  if(PERFIL_BASE) qAcert = qAcert.filter('base','ilike',PERFIL_BASE);
   const {data:acert} = await qAcert;
 
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
@@ -532,9 +531,11 @@ async function buscarTotalLeituras(base, rz, leit){
       // busca case-insensitive sem ilike (Supabase nao aceita ilike com espacos na URL)
       const {data:allMats} = await sb.from('matriculas').select('matricula,base');
       const mats = (allMats||[]).filter(m=>(m.base||'').toLowerCase()===base.toLowerCase());
+      console.log('base:', base, 'mats encontradas:', mats.length, mats.map(m=>m.matricula));
       if(!mats||!mats.length) return 0;
       const filtros = {mes_ref, matricula: mats.map(m=>m.matricula)};
       if(rz) filtros.rz = rz;
+      console.log('filtros somarJornada:', filtros);
       return await somarJornada(filtros);
     }
 
