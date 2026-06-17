@@ -407,9 +407,9 @@ async function carregarDados(){
   }
 
   // Buscar acertadas do mês
-  const {data:acert} = await sb.from('leituras_acertadas')
-    .select('instalacao,reg')
-    .eq('mes_ref', mesStr);
+  let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
+  if(PERFIL_BASE) qAcert = qAcert.eq('base', PERFIL_BASE);
+  const {data:acert} = await qAcert;
 
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
 
@@ -459,7 +459,7 @@ function dadosFiltrados(){
 
 function renderPainel(){
   const dados = dadosFiltrados();
-  const base = document.getElementById('f-base').value;
+  const base = PERFIL_BASE || document.getElementById('f-base').value;
   const rz   = document.getElementById('f-rz').value;
   const leit = document.getElementById('f-leit').value;
 
@@ -902,7 +902,9 @@ async function carregarAcertadas(){
   // Tentar os dois formatos de mes_ref
   let acert = null;
   for(const fmt of [mesStr, `${mesStr}-01`]){
-    const {data} = await sb.from('leituras_acertadas').select('*').eq('mes_ref', fmt).order('instalacao');
+    let q = sb.from('leituras_acertadas').select('*').eq('mes_ref', fmt).order('instalacao');
+    if(PERFIL_BASE) q = q.eq('base', PERFIL_BASE);
+    const {data} = await q;
     if(data && data.length){ acert = data; break; }
   }
 
@@ -912,7 +914,9 @@ async function carregarAcertadas(){
   // Buscar total impedimentos do mês por mes_ref (cabeçalho do arquivo)
   let totalImpBruto = 0;
   for(const fmt of [`${mesStr}-01`, mesStr]){
-    const {count} = await sb.from('impedimentos').select('*', {count:'exact',head:true}).eq('mes_ref', fmt);
+    let qImp = sb.from('impedimentos').select('*', {count:'exact',head:true}).eq('mes_ref', fmt);
+    if(PERFIL_BASE) qImp = qImp.eq('base', PERFIL_BASE);
+    const {count} = await qImp;
     if(count){ totalImpBruto = count; break; }
   }
   const totalImp = Math.max(0, (totalImpBruto||0) - total);
