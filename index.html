@@ -421,7 +421,20 @@ async function carregarDados(){
   dadosRaw = (imps||[]).filter(r => !acertadasSet.has(`${r.instalacao}|${r.reg}`));
 
   // Popular filtros
-  const bases = [...new Set(dadosRaw.map(r=>r.base).filter(Boolean))].sort();
+  // Lista de bases: busca independente do filtro de base selecionado, para o dropdown
+  // sempre mostrar todas as opções do mês (não só a base atualmente filtrada)
+  let bases = [];
+  if(!PERFIL_BASE){
+    let basesRaw = [], bFrom = 0;
+    while(true){
+      const {data:loteB} = await sb.from('impedimentos').select('base').eq('mes_ref', mesRefUsado).range(bFrom, bFrom+999);
+      if(!loteB || !loteB.length) break;
+      basesRaw = basesRaw.concat(loteB.map(r=>r.base).filter(Boolean));
+      if(loteB.length < 1000) break;
+      bFrom += 1000;
+    }
+    bases = [...new Set(basesRaw)].sort();
+  }
   const leits = [...new Set(dadosRaw.map(r=>r.matricula).filter(Boolean))].sort();
   const rzs   = [...new Set(dadosRaw.map(r=>r.rz).filter(Boolean))].sort();
 
@@ -431,7 +444,8 @@ async function carregarDados(){
   const vBase = selBase.value, vLeit = selLeit.value, vRz = selRz.value;
 
   selBase.innerHTML = '<option value="">Todas</option>';
-  bases.forEach(b => selBase.innerHTML += `<option value="${b}">${b}</option>`);
+  if(!PERFIL_BASE) bases.forEach(b => selBase.innerHTML += `<option value="${b}">${b}</option>`);
+  else selBase.innerHTML += `<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
   selLeit.innerHTML = '<option value="">Todos</option>';
   leits.forEach(l => selLeit.innerHTML += `<option value="${l}">${l}</option>`);
   selRz.innerHTML = '<option value="">Todos</option>';
