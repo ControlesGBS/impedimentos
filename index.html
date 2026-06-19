@@ -465,7 +465,7 @@ function dadosFiltrados(){
   const rz   = document.getElementById('f-rz').value;
 
   return dadosRaw.filter(r => {
-    if(base && r.base !== base) return false;
+    if(base && normBase(r.base)!==normBase(base)) return false;
     if(leit && r.matricula !== leit) return false;
     if(rz   && r.rz !== rz) return false;
     const resp = (r.responsabilidade||'').toUpperCase();
