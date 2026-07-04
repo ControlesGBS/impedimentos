@@ -342,17 +342,26 @@ async function iniciar(){
     });
   }
 
-  // Meses
+  // Meses — só os que realmente têm dados (impedimentos / leituras_acertadas)
   const sel = document.getElementById('f-mes');
   const selAc = document.getElementById('ac-mes');
-  const hoje = new Date();
-  for(let i=0;i<12;i++){
-    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const val = `${mm}/${d.getFullYear()}`;
-    sel.innerHTML += `<option value="${val}">${val}</option>`;
-    selAc.innerHTML += `<option value="${val}">${val}</option>`;
+
+  function normalizarParaMMAAAA(mesRefRaw){
+    // aceita 'yyyy-mm' ou 'yyyy-mm-01'
+    const [aa,mm]=mesRefRaw.slice(0,7).split('-');
+    return `${mm}/${aa}`;
   }
+
+  const {data:mesesImp}=await sb.rpc('meses_impedimentos');
+  const valsImp=[...new Set((mesesImp||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
+  sel.innerHTML='';
+  valsImp.forEach(val=>{ sel.innerHTML += `<option value="${val}">${val}</option>`; });
+
+  const {data:mesesAc}=await sb.rpc('meses_leituras_acertadas');
+  const valsAc=[...new Set((mesesAc||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
+  selAc.innerHTML='';
+  valsAc.forEach(val=>{ selAc.innerHTML += `<option value="${val}">${val}</option>`; });
+
   if(sel.options.length>0) sel.selectedIndex=0;
   if(selAc.options.length>0) selAc.selectedIndex=0;
 
