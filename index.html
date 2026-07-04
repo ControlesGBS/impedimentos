@@ -585,11 +585,18 @@ async function renderGraficos(dados){
   });
 
   // Total leituras por base (da jornada via buscarTotalLeituras)
-  const basesLabel = Object.keys(porBase).sort((a,b)=>(porBase[b]||0)-(porBase[a]||0));
+  const basesIniciais = Object.keys(porBase);
   const totalLeitPorBase = {};
-  await Promise.all(basesLabel.map(async b => {
+  await Promise.all(basesIniciais.map(async b => {
     totalLeitPorBase[b] = await buscarTotalLeituras(b, null, null);
   }));
+
+  // Ordenar pela % de impedimentos (maior para menor) — é isso que o gráfico exibe
+  const basesLabel = basesIniciais.sort((a,b) => {
+    const pctA = (porBase[a]||0)/(totalLeitPorBase[a]||1);
+    const pctB = (porBase[b]||0)/(totalLeitPorBase[b]||1);
+    return pctB - pctA;
+  });
 
   const pctBase = basesLabel.map(b => {
     const tot = totalLeitPorBase[b]||1;
