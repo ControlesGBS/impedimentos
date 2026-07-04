@@ -337,7 +337,7 @@ function irPara(id, btn){
   document.getElementById('pag-'+id).classList.add('ativo');
   btn.classList.add('ativo');
 }
-async function sair(){ await sb.auth.signOut(); location.reload(); }
+async function sair(){ await sb.auth.signOut(); location.href='https://gbsservicos.com'; }
 
 function setResp(v, btn){
   respFiltro = v;
