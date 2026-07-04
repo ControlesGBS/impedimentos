@@ -86,6 +86,32 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 .progresso.erro{color:#a32d2d}
 .progresso.ok{color:#2d7a2d}
 .tag-arquivo{display:inline-flex;align-items:center;gap:6px;background:#f0f8f0;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;font-size:12px;color:#1a4a1a;margin-top:8px}
+.banner-atualizacao{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#1a4a1a,#2d7a2d);
+  color:#fff;text-align:center;padding:10px 16px;
+  font-size:14px;font-weight:600;letter-spacing:.3px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.banner-atualizacao::after{
+  content:'';position:absolute;top:0;left:-40%;width:40%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  animation:brilho 3.2s ease-in-out infinite;
+}
+@keyframes brilho{
+  0%{left:-40%}
+  100%{left:120%}
+}
+.dot-live{
+  width:9px;height:9px;border-radius:50%;background:#7CFC7C;
+  box-shadow:0 0 0 rgba(124,252,124,.6);
+  animation:pulso 1.6s infinite;
+}
+@keyframes pulso{
+  0%{box-shadow:0 0 0 0 rgba(124,252,124,.6)}
+  70%{box-shadow:0 0 0 8px rgba(124,252,124,0)}
+  100%{box-shadow:0 0 0 0 rgba(124,252,124,0)}
+}
 </style>
 </head>
 <body>
@@ -102,6 +128,10 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   <button class="ativo" onclick="irPara('painel',this)">Painel</button>
   <button onclick="irPara('acertadas',this)">Acertadas</button>
   <button onclick="irPara('admin',this)">Administração</button>
+</div>
+<div class="banner-atualizacao" id="banner-atualizacao">
+  <span class="dot-live"></span>
+  <span id="banner-atualizacao-texto">Carregando última atualização...</span>
 </div>
 
 <!-- PAINEL -->
@@ -319,6 +349,7 @@ function setResp(v, btn){
 // ── PERFIL DO USUÁRIO ─────────────────────────────────────────────
 let PERFIL_BASE=null;
 let PERFIL_TIPO=null;
+let USUARIO_NOME=null;
 
 // ── INIT ────────────────────────────────────────────────────────
 async function iniciar(){
@@ -328,11 +359,11 @@ async function iniciar(){
   // Buscar perfil
   const {data:up}=await sb.from('usuarios_portal').select('nome,perfil,base,ativo').eq('id',user.id).single();
   if(up&&up.ativo){
-    PERFIL_TIPO=up.perfil; PERFIL_BASE=up.base||null;
+    PERFIL_TIPO=up.perfil; PERFIL_BASE=up.base||null; USUARIO_NOME=up.nome||user.email;
     document.getElementById('user-info').textContent=up.nome||user.email;
   } else {
     document.getElementById('user-info').textContent=user.email;
-    PERFIL_TIPO='gestor'; PERFIL_BASE=null;
+    PERFIL_TIPO='gestor'; PERFIL_BASE=null; USUARIO_NOME=user.email;
   }
 
   // Esconder admin se não for gestor
@@ -382,6 +413,7 @@ async function iniciar(){
   const {data:ld} = await sb.from('local_base').select('local,cidade,base');
   (ld||[]).forEach(r => localMap[r.local] = {cidade:r.cidade, base:r.base});
 
+  await carregarUltimaAtualizacao();
   await carregarDados();
 }
 
@@ -845,8 +877,28 @@ async function processarAcert(){
 
     prog.className = 'progresso ok';
     prog.textContent = `\u2713 ${registros.length} leituras acertadas salvas para ${mesRef}!`;
+    registrarUpload('leituras_acertadas');
   } catch(e){ prog.className='progresso erro'; prog.textContent='Erro: '+e.message; console.error(e); }
   btn.disabled = false;
+}
+
+async function registrarUpload(tipo){
+  await sb.from('uploads_log').upsert({tipo,atualizado_em:new Date().toISOString(),atualizado_por:USUARIO_NOME||'—'});
+  carregarUltimaAtualizacao();
+}
+
+async function carregarUltimaAtualizacao(){
+  const {data}=await sb.from('uploads_log').select('atualizado_em,atualizado_por').eq('tipo','leituras_acertadas').maybeSingle();
+  const el=document.getElementById('banner-atualizacao-texto');
+  if(!el) return;
+  if(data){
+    const dt=new Date(data.atualizado_em);
+    const dataStr=dt.toLocaleDateString('pt-BR');
+    const horaStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    el.textContent=`Atualizado em: ${dataStr} às ${horaStr}`;
+  } else {
+    el.textContent='Nenhuma atualização registrada ainda';
+  }
 }
 
 
