@@ -444,7 +444,7 @@ async function carregarDados(){
       .order('base').order('matricula').order('data')
       .range(_from, _from + LOTE - 1);
     const baseF=PERFIL_BASE||document.getElementById('f-base').value;
-    if(baseF) q=q.filter('base','ilike',baseF);
+    if(baseF) q=q.filter('base','ilike',normBase(baseF));
     const {data:lote, error} = await q;
     if(error || !lote || !lote.length) break;
     imps = imps.concat(lote);
@@ -1010,7 +1010,7 @@ async function carregarAcertadas(){
 
   // Se for supervisor com base definida, filtra pelas instalacao+reg da base (via impedimentos)
   if(PERFIL_BASE && lista.length){
-    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', `${mesStr}-01`).filter('base','ilike',PERFIL_BASE);
+    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', `${mesStr}-01`).filter('base','ilike',normBase(PERFIL_BASE));
     const chaveSet = new Set((instBase||[]).map(r=>`${r.instalacao}|${r.reg}`));
     lista = lista.filter(r=>chaveSet.has(`${r.instalacao}|${r.reg}`));
   }
@@ -1021,7 +1021,7 @@ async function carregarAcertadas(){
   let totalImpBruto = 0;
   for(const fmt of [`${mesStr}-01`, mesStr]){
     let qImp = sb.from('impedimentos').select('*', {count:'exact',head:true}).eq('mes_ref', fmt);
-    if(PERFIL_BASE) qImp = qImp.filter('base','ilike',PERFIL_BASE);
+    if(PERFIL_BASE) qImp = qImp.filter('base','ilike',normBase(PERFIL_BASE));
     const {count} = await qImp;
     if(count){ totalImpBruto = count; break; }
   }
