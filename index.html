@@ -479,6 +479,10 @@ async function carregarDados(){
   const leits = [...new Set(dadosRaw.map(r=>r.matricula).filter(Boolean))].sort();
   const rzs   = [...new Set(dadosRaw.map(r=>r.rz).filter(Boolean))].sort();
 
+  const {data:leitsInfo} = await sb.from('matriculas').select('matricula,nome_leiturista').in('matricula', leits);
+  const leitNomeMap = {};
+  (leitsInfo||[]).forEach(m=>{ leitNomeMap[m.matricula]=m.nome_leiturista; });
+
   const selBase = document.getElementById('f-base');
   const selLeit = document.getElementById('f-leit');
   const selRz   = document.getElementById('f-rz');
@@ -488,7 +492,10 @@ async function carregarDados(){
   if(!PERFIL_BASE) bases.forEach(b => selBase.innerHTML += `<option value="${b}">${b}</option>`);
   else selBase.innerHTML += `<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
   selLeit.innerHTML = '<option value="">Todos</option>';
-  leits.forEach(l => selLeit.innerHTML += `<option value="${l}">${l}</option>`);
+  leits.forEach(l => {
+    const nome=leitNomeMap[l];
+    selLeit.innerHTML += `<option value="${l}">${nome?`${l} — ${nome}`:l}</option>`;
+  });
   selRz.innerHTML = '<option value="">Todos</option>';
   rzs.forEach(r => selRz.innerHTML += `<option value="${r}">${r}</option>`);
 
