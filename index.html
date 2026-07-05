@@ -443,21 +443,14 @@ async function carregarDados(){
       .eq('mes_ref', mesRefUsado)
       .order('base').order('matricula').order('data')
       .range(_from, _from + LOTE - 1);
-    const baseF=PERFIL_BASE||document.getElementById('f-base').value;
-    console.log('[DIAG Impedimentos] PERFIL_BASE cru:', JSON.stringify(PERFIL_BASE), '| normalizado:', JSON.stringify(normBase(baseF)));
-    if(PERFIL_BASE && _from===0){
-      const {data:achouGuaxupe, error:errGuaxupe} = await sb.from('impedimentos').select('base').ilike('base','%guaxup%').limit(20);
-      console.log('[DIAG Impedimentos] Linhas com "guaxup" no nome da base (até 20):', achouGuaxupe, errGuaxupe);
-      const {count:totalGeral} = await sb.from('impedimentos').select('*',{count:'exact',head:true}).eq('mes_ref', mesRefUsado);
-      console.log('[DIAG Impedimentos] Total de linhas para mes_ref='+mesRefUsado+':', totalGeral);
-    }
-    if(baseF) q=q.filter('base','ilike',normBase(baseF));
     const {data:lote, error} = await q;
     if(error || !lote || !lote.length) break;
     imps = imps.concat(lote);
     if(lote.length < LOTE) break;
     _from += LOTE;
   }
+  const baseF=PERFIL_BASE||document.getElementById('f-base').value;
+  if(baseF) imps = imps.filter(r=>normBase(r.base)===normBase(baseF));
 
   // Buscar acertadas do mês
   let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
@@ -1017,7 +1010,8 @@ async function carregarAcertadas(){
 
   // Se for supervisor com base definida, filtra pelas instalacao+reg da base (via impedimentos)
   if(PERFIL_BASE && lista.length){
-    const {data:instBase} = await sb.from('impedimentos').select('instalacao,reg').eq('mes_ref', `${mesStr}-01`).filter('base','ilike',normBase(PERFIL_BASE));
+    const {data:instBaseTodos} = await sb.from('impedimentos').select('instalacao,reg,base').eq('mes_ref', `${mesStr}-01`);
+    const instBase = (instBaseTodos||[]).filter(r=>normBase(r.base)===normBase(PERFIL_BASE));
     const chaveSet = new Set((instBase||[]).map(r=>`${r.instalacao}|${r.reg}`));
     lista = lista.filter(r=>chaveSet.has(`${r.instalacao}|${r.reg}`));
   }
@@ -1027,9 +1021,11 @@ async function carregarAcertadas(){
   // Buscar total impedimentos do mês por mes_ref (cabeçalho do arquivo)
   let totalImpBruto = 0;
   for(const fmt of [`${mesStr}-01`, mesStr]){
-    let qImp = sb.from('impedimentos').select('*', {count:'exact',head:true}).eq('mes_ref', fmt);
-    if(PERFIL_BASE) qImp = qImp.filter('base','ilike',normBase(PERFIL_BASE));
-    const {count} = await qImp;
+    let qImp = sb.from('impedimentos').select('base').eq('mes_ref', fmt);
+    const {data:linhasImp} = await qImp;
+    const count = PERFIL_BASE
+      ? (linhasImp||[]).filter(r=>normBase(r.base)===normBase(PERFIL_BASE)).length
+      : (linhasImp||[]).length;
     if(count){ totalImpBruto = count; break; }
   }
   const totalImp = Math.max(0, (totalImpBruto||0) - total);
