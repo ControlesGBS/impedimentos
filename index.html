@@ -543,7 +543,7 @@ async function renderPainel(){
       <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>`;
   });
 
-  await renderGraficos(dados);
+  await renderGraficos(dados, rz, leit);
   renderTabela(dados);
 }
 
@@ -642,7 +642,7 @@ function corDaBase(nome){
   return PALETA_BASES[hash % PALETA_BASES.length];
 }
 
-async function renderGraficos(dados){
+async function renderGraficos(dados, rz, leit){
   // % por base (só GBS) — agrupa por base
   const porBase = {};
   dados.filter(r=>r.responsabilidade==='GBS').forEach(r=>{
@@ -654,7 +654,7 @@ async function renderGraficos(dados){
   const basesIniciais = Object.keys(porBase);
   const totalLeitPorBase = {};
   await Promise.all(basesIniciais.map(async b => {
-    totalLeitPorBase[b] = await buscarTotalLeituras(b, null, null);
+    totalLeitPorBase[b] = await buscarTotalLeituras(b, rz, leit);
   }));
 
   // Ordenar pela % de impedimentos (maior para menor) — é isso que o gráfico exibe
