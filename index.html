@@ -624,6 +624,24 @@ async function buscarTotalLeituras(base, rz, leit){
   return 0;
 }
 
+const PALETA_BASES = [
+  {bg:'rgba(45,122,45,0.75)',  border:'#1a4a1a'},
+  {bg:'rgba(31,92,153,0.75)',  border:'#123a61'},
+  {bg:'rgba(184,134,11,0.75)', border:'#7a5a08'},
+  {bg:'rgba(139,58,139,0.75)', border:'#5c265c'},
+  {bg:'rgba(192,57,43,0.75)',  border:'#7e241b'},
+  {bg:'rgba(22,160,133,0.75)', border:'#0e6655'},
+  {bg:'rgba(211,84,0,0.75)',   border:'#8a3700'},
+  {bg:'rgba(52,73,94,0.75)',   border:'#212f3c'},
+  {bg:'rgba(41,128,185,0.75)', border:'#1b4f72'},
+  {bg:'rgba(108,52,131,0.75)', border:'#4a235a'},
+];
+function corDaBase(nome){
+  let hash=0;
+  for(let i=0;i<(nome||'').length;i++) hash=(hash*31+nome.charCodeAt(i))>>>0;
+  return PALETA_BASES[hash % PALETA_BASES.length];
+}
+
 async function renderGraficos(dados){
   // % por base (só GBS) — agrupa por base
   const porBase = {};
@@ -656,7 +674,7 @@ async function renderGraficos(dados){
     type:'bar',
     data:{
       labels: basesLabel,
-      datasets:[{label:'% Imp. GBS', data:pctBase.map(v=>parseFloat(v)), backgroundColor:'rgba(45,122,45,0.7)', borderColor:'#1a4a1a', borderWidth:1}]
+      datasets:[{label:'% Imp. GBS', data:pctBase.map(v=>parseFloat(v)), backgroundColor:basesLabel.map(b=>corDaBase(b).bg), borderColor:basesLabel.map(b=>corDaBase(b).border), borderWidth:1}]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
