@@ -357,12 +357,27 @@ let PERFIL_TIPO=null;
 let USUARIO_NOME=null;
 
 // ── INIT ────────────────────────────────────────────────────────
+function normalizarParaMMAAAA(mesRefRaw){
+  // aceita 'yyyy-mm' ou 'yyyy-mm-01'
+  const [aa,mm]=mesRefRaw.slice(0,7).split('-');
+  return `${mm}/${aa}`;
+}
+
 async function iniciar(){
   const {data:{user}} = await sb.auth.getUser();
   if(!user){ location.href='login.html'; return; }
 
-  // Buscar perfil
-  const {data:up}=await sb.from('usuarios_portal').select('nome,perfil,base,ativo').eq('id',user.id).single();
+  carregarUltimaAtualizacao();
+
+  // Perfil, meses (via RPC) e local_base não dependem uns dos outros — buscar em paralelo
+  // em vez de esperar cada um terminar pra só então começar o próximo.
+  const [{data:up}, {data:mesesImp}, {data:mesesAc}, {data:ld}] = await Promise.all([
+    sb.from('usuarios_portal').select('nome,perfil,base,ativo').eq('id',user.id).single(),
+    sb.rpc('meses_impedimentos'),
+    sb.rpc('meses_leituras_acertadas'),
+    sb.from('local_base').select('local,cidade,base')
+  ]);
+
   if(up&&up.ativo){
     PERFIL_TIPO=up.perfil; PERFIL_BASE=up.base||null; USUARIO_NOME=up.nome||user.email;
     document.getElementById('user-info').textContent=up.nome||user.email;
@@ -382,18 +397,10 @@ async function iniciar(){
   const sel = document.getElementById('f-mes');
   const selAc = document.getElementById('ac-mes');
 
-  function normalizarParaMMAAAA(mesRefRaw){
-    // aceita 'yyyy-mm' ou 'yyyy-mm-01'
-    const [aa,mm]=mesRefRaw.slice(0,7).split('-');
-    return `${mm}/${aa}`;
-  }
-
-  const {data:mesesImp}=await sb.rpc('meses_impedimentos');
   const valsImp=[...new Set((mesesImp||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
   sel.innerHTML='';
   valsImp.forEach(val=>{ sel.innerHTML += `<option value="${val}">${val}</option>`; });
 
-  const {data:mesesAc}=await sb.rpc('meses_leituras_acertadas');
   const valsAc=[...new Set((mesesAc||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
   selAc.innerHTML='';
   valsAc.forEach(val=>{ selAc.innerHTML += `<option value="${val}">${val}</option>`; });
@@ -401,7 +408,10 @@ async function iniciar(){
   if(sel.options.length>0) sel.selectedIndex=0;
   if(selAc.options.length>0) selAc.selectedIndex=0;
 
-  // Filtro de base — travar se supervisor
+  // Local map
+  (ld||[]).forEach(r => localMap[r.local] = {cidade:r.cidade, base:r.base});
+
+  // Filtro de base — travar se supervisor (reaproveita a mesma busca de local_base acima)
   const selBase=document.getElementById('f-base');
   if(PERFIL_BASE){
     selBase.innerHTML=`<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
@@ -409,16 +419,10 @@ async function iniciar(){
     selBase.disabled=true;
     selBase.closest('div').style.display='none';
   } else {
-    const {data:bases}=await sb.from('local_base').select('base').order('base');
-    const uniq=[...new Set((bases||[]).map(r=>r.base).filter(Boolean))];
+    const uniq=[...new Set((ld||[]).map(r=>r.base).filter(Boolean))].sort();
     uniq.forEach(b=>selBase.innerHTML+=`<option value="${b}">${b}</option>`);
   }
 
-  // Local map
-  const {data:ld} = await sb.from('local_base').select('local,cidade,base');
-  (ld||[]).forEach(r => localMap[r.local] = {cidade:r.cidade, base:r.base});
-
-  await carregarUltimaAtualizacao();
   await carregarDados();
 }
 
@@ -427,37 +431,38 @@ async function carregarDados(){
   if(!mes) return;
   const [mm,aa] = mes.split('/');
   const mesStr = `${aa}-${mm}`;
+  totalLeituraCache = {};
 
   document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
 
+  // Dispara a busca de acertadas já, em paralelo com a de impedimentos abaixo — não dependem uma da outra
+  const acertPromise = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
+
   // Buscar impedimentos do banco por mes_ref (vem do cabeçalho do arquivo, não da data da leitura)
   const mesStr01 = `${aa}-${mm}-01`;
-  let imps = [], _from = 0, LOTE = 1000;
-  // Tenta mes_ref formato yyyy-mm-01 primeiro, depois yyyy-mm
+  const LOTE = 1000;
+  // Tenta mes_ref formato yyyy-mm-01 primeiro, depois yyyy-mm — usa count exato pra saber
+  // de antemão quantas páginas existem, daí busca todas elas em paralelo (em vez de uma
+  // de cada vez, esperando a anterior terminar).
   let mesRefUsado = mesStr01;
-  {
-    const {data:teste} = await sb.from('impedimentos').select('instalacao').eq('mes_ref', mesStr01).limit(1);
-    if(!teste||!teste.length){
-      const {data:teste2} = await sb.from('impedimentos').select('instalacao').eq('mes_ref', mesStr).limit(1);
-      if(teste2&&teste2.length) mesRefUsado = mesStr;
-    }
+  let {count} = await sb.from('impedimentos').select('*', {count:'exact', head:true}).eq('mes_ref', mesStr01);
+  if(!count){
+    const r2 = await sb.from('impedimentos').select('*', {count:'exact', head:true}).eq('mes_ref', mesStr);
+    if(r2.count){ mesRefUsado = mesStr; count = r2.count; }
   }
-  while(true){
-    let q=sb.from('impedimentos')
-      .select('*')
-      .eq('mes_ref', mesRefUsado)
-      .order('base').order('matricula').order('data')
-      .range(_from, _from + LOTE - 1);
-    const {data:lote, error} = await q;
-    if(error || !lote || !lote.length) break;
-    imps = imps.concat(lote);
-    if(lote.length < LOTE) break;
-    _from += LOTE;
-  }
-  // Buscar acertadas do mês
-  let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
-  const {data:acert} = await qAcert;
+  const totalPaginas = Math.max(1, Math.ceil((count||0)/LOTE));
+  const paginas = await Promise.all(
+    Array.from({length: totalPaginas}, (_, i) =>
+      sb.from('impedimentos')
+        .select('*')
+        .eq('mes_ref', mesRefUsado)
+        .order('base').order('matricula').order('data')
+        .range(i*LOTE, i*LOTE + LOTE - 1)
+    )
+  );
+  let imps = paginas.flatMap(p => p.data || []);
 
+  const {data:acert} = await acertPromise;
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
 
   // dadosRawTodasBases: TODAS as bases, sem nenhuma restrição — alimenta só o ranking,
@@ -471,26 +476,20 @@ async function carregarDados(){
   dadosRaw = baseDropdown ? dadosPermitidos.filter(r=>normBase(r.base)===normBase(baseDropdown)) : dadosPermitidos;
 
   // Popular filtros
-  // Lista de bases: busca independente do filtro de base selecionado, para o dropdown
-  // sempre mostrar todas as opções do mês (não só a base atualmente filtrada)
+  // Lista de bases: já temos todos os registros do mês em `imps` (buscados acima),
+  // não precisa refazer a busca no Supabase — só extrair as bases distintas.
   let bases = [];
   if(!PERFIL_BASE){
-    let basesRaw = [], bFrom = 0;
-    while(true){
-      const {data:loteB} = await sb.from('impedimentos').select('base').eq('mes_ref', mesRefUsado).range(bFrom, bFrom+999);
-      if(!loteB || !loteB.length) break;
-      basesRaw = basesRaw.concat(loteB.map(r=>r.base).filter(Boolean));
-      if(loteB.length < 1000) break;
-      bFrom += 1000;
-    }
-    bases = [...new Set(basesRaw)].sort();
+    bases = [...new Set(imps.map(r=>r.base).filter(Boolean))].sort();
   }
   const leits = [...new Set(dadosRaw.map(r=>r.matricula).filter(Boolean))].sort();
   const rzs   = [...new Set(dadosRaw.map(r=>r.rz).filter(Boolean))].sort();
 
-  const {data:leitsInfo} = await sb.from('matriculas').select('matricula,nome_leiturista').in('matricula', leits);
+  // Nomes dos leituristas pro dropdown (reaproveita o cache de matriculas em vez de outra consulta)
+  const leitsSet = new Set(leits);
+  const allMatsNomes = await getMatriculas();
   const leitNomeMap = {};
-  (leitsInfo||[]).forEach(m=>{ leitNomeMap[m.matricula]=m.nome_leiturista; });
+  allMatsNomes.filter(m=>leitsSet.has(m.matricula)).forEach(m=>{ leitNomeMap[m.matricula]=m.nome_leiturista; });
 
   const selBase = document.getElementById('f-base');
   const selLeit = document.getElementById('f-leit');
@@ -613,10 +612,32 @@ async function somarJornada(filtros){
   return total;
 }
 
+// matriculas é uma tabela de cadastro (não muda por mês/filtro) — buscar uma vez só
+// e reaproveitar, em vez de rebuscar a tabela inteira para cada base.
+let matriculasCache = null;
+async function getMatriculas(){
+  if(!matriculasCache){
+    const {data} = await sb.from('matriculas').select('matricula,base,nome_leiturista,funcao,data_admissao');
+    matriculasCache = data||[];
+  }
+  return matriculasCache;
+}
+
+// Cache por (mes|base|rz|leit) — renderGraficos e renderRankingBases pedem o total
+// de leituras das mesmas bases repetidamente; sem cache isso duplica toda a busca
+// (matriculas inteira + soma paginada de jornada) para cada gráfico.
+let totalLeituraCache = {};
 async function buscarTotalLeituras(base, rz, leit){
   base = base || PERFIL_BASE || null;
   const mes = document.getElementById('f-mes').value;
   if(!mes) return 0;
+  const cacheKey = `${mes}|${base||''}|${rz||''}|${leit||''}`;
+  if(totalLeituraCache[cacheKey]) return totalLeituraCache[cacheKey];
+  const promise = buscarTotalLeiturasImpl(mes, base, rz, leit);
+  totalLeituraCache[cacheKey] = promise;
+  return promise;
+}
+async function buscarTotalLeiturasImpl(mes, base, rz, leit){
   const [mm,aa] = mes.split('/');
   // Usa mes_ref do cabecalho (igual ao gravado na jornada), nao filtra por data da leitura
   // pois leituristas podem comecar antes ou terminar depois do mes
@@ -644,8 +665,8 @@ async function buscarTotalLeituras(base, rz, leit){
 
     if(base){
       // busca case-insensitive sem ilike (Supabase nao aceita ilike com espacos na URL)
-      const {data:allMats} = await sb.from('matriculas').select('matricula,base');
-      const mats = (allMats||[]).filter(m=>normBase(m.base)===normBase(base));
+      const allMats = await getMatriculas();
+      const mats = allMats.filter(m=>normBase(m.base)===normBase(base));
       if(!mats||!mats.length) return 0;
       const filtros = {mes_ref, matricula: mats.map(m=>m.matricula)};
       if(rz) filtros.rz = rz;
@@ -662,8 +683,8 @@ async function buscarTotalLeituras(base, rz, leit){
     const filtros = {mes_ref};
     if(rz) filtros.rz = rz;
     if(base){
-      const {data:allMats} = await sb.from('matriculas').select('matricula,base');
-      const mats = (allMats||[]).filter(m=>normBase(m.base)===normBase(base));
+      const allMats = await getMatriculas();
+      const mats = allMats.filter(m=>normBase(m.base)===normBase(base));
       if(!mats||!mats.length) return 0;
       filtros.matricula = mats.map(m=>m.matricula);
     }
@@ -787,13 +808,11 @@ async function renderGraficos(dados, rz, leit){
   dados.forEach(r=>{ if(r.matricula) porLeit[r.matricula]=(porLeit[r.matricula]||0)+1; });
   const leitsTop = Object.entries(porLeit).sort((a,b)=>b[1]-a[1]).slice(0,25);
 
-  // Buscar dados de matrícula para o tooltip
-  const matsIds = leitsTop.map(l=>l[0]);
-  const {data:matsInfo} = await sb.from('matriculas')
-    .select('matricula,nome_leiturista,base,funcao,data_admissao')
-    .in('matricula', matsIds);
+  // Buscar dados de matrícula para o tooltip (reaproveita o cache de matriculas)
+  const matsIdsSet = new Set(leitsTop.map(l=>l[0]));
+  const allMatsTooltip = await getMatriculas();
   const matsMap = {};
-  (matsInfo||[]).forEach(m=>{ matsMap[m.matricula]=m; });
+  allMatsTooltip.filter(m=>matsIdsSet.has(m.matricula)).forEach(m=>{ matsMap[m.matricula]=m; });
 
   if(chartLeit) chartLeit.destroy();
   chartLeit = new Chart(document.getElementById('chart-leit'), {
