@@ -163,6 +163,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
         <button class="resp-btn" onclick="setResp('CEMIG',this)">CEMIG</button>
       </div>
     </div>
+    <div id="ranking-bases" style="margin-left:auto;display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center"></div>
   </div>
   <div class="kpis" id="kpis" style="margin-bottom:0;padding-bottom:10px">
     <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">—</div></div>
@@ -176,7 +177,6 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   <div class="graficos">
     <div class="grafico-card">
       <h3>% Impedimentos por Base (GBS)</h3>
-      <div id="ranking-bases" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:10px"></div>
       <div class="chart-wrap"><canvas id="chart-base"></canvas></div>
     </div>
     <div class="grafico-card local-scroll">
@@ -551,6 +551,39 @@ async function renderPainel(){
 
   await renderGraficos(dados, rz, leit);
   renderTabela(dados);
+  renderRankingBases(base);
+}
+
+// Ranking de bases: sempre calculado com TODAS as bases (ignora filtro de base/leiturista/RZ),
+// pra manter a colocação de cada base estável mesmo quando você filtra só uma.
+// Menor % é melhor — por isso o 1º colocado é o menor percentual.
+async function renderRankingBases(baseAtiva){
+  const rankingEl = document.getElementById('ranking-bases');
+  if(!rankingEl) return;
+  const porBase = {};
+  dadosRaw.filter(r=>(r.responsabilidade||'').toUpperCase()==='GBS').forEach(r=>{
+    if(!r.base) return;
+    porBase[r.base] = (porBase[r.base]||0) + 1;
+  });
+  const basesIniciais = Object.keys(porBase);
+  const totalLeitPorBase = {};
+  await Promise.all(basesIniciais.map(async b => {
+    totalLeitPorBase[b] = await buscarTotalLeituras(b, null, null);
+  }));
+  const basesOrdenadas = basesIniciais.sort((a,b) => {
+    const pctA = (porBase[a]||0)/(totalLeitPorBase[a]||1);
+    const pctB = (porBase[b]||0)/(totalLeitPorBase[b]||1);
+    return pctA - pctB;
+  });
+  rankingEl.innerHTML = basesOrdenadas.map((b,i)=>{
+    const pct = ((porBase[b]||0)/(totalLeitPorBase[b]||1)*100).toFixed(2);
+    const ativa = baseAtiva && normBase(b)===normBase(baseAtiva);
+    return `<span style="display:inline-flex;align-items:baseline;gap:5px;${ativa?'background:#eaf3de;border-radius:6px;padding:2px 8px':''}">
+      <span style="font-size:20px;font-weight:700;color:${corDaBase(b).border}">${i+1}º</span>
+      <span style="font-size:14px;font-weight:600;color:#1a2a1a">${b}</span>
+      <span style="font-size:12px;font-weight:500;color:#4a7a4a">${pct}%</span>
+    </span>`;
+  }).join('');
 }
 
 // Busca paginada da jornada para evitar limite de 1000 registros do Supabase
@@ -674,16 +707,6 @@ async function renderGraficos(dados, rz, leit){
     const tot = totalLeitPorBase[b]||1;
     return ((porBase[b]||0)/tot*100).toFixed(2);
   });
-
-  const rankingEl = document.getElementById('ranking-bases');
-  if(rankingEl){
-    rankingEl.innerHTML = basesLabel.map((b,i)=>`
-      <span style="display:inline-flex;align-items:baseline;gap:6px">
-        <span style="font-size:22px;font-weight:700;color:${corDaBase(b).border}">${i+1}º</span>
-        <span style="font-size:16px;font-weight:600;color:#1a2a1a">${b}</span>
-        <span style="font-size:14px;font-weight:500;color:#4a7a4a">${pctBase[i]}%</span>
-      </span>`).join('');
-  }
 
   if(chartBase) chartBase.destroy();
   chartBase = new Chart(document.getElementById('chart-base'), {
