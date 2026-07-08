@@ -315,6 +315,7 @@ function normBase(s){
 
 let respFiltro = 'todos';
 let dadosRaw = [];
+let dadosRawTodasBases = []; // ignora o filtro de base do dropdown (só respeita PERFIL_BASE) — usado no ranking
 let localMap = {};
 let acertadasSet = new Set();
 let paginaAtual = 1;
@@ -453,8 +454,10 @@ async function carregarDados(){
     if(lote.length < LOTE) break;
     _from += LOTE;
   }
-  const baseF=PERFIL_BASE||document.getElementById('f-base').value;
-  if(baseF) imps = imps.filter(r=>normBase(r.base)===normBase(baseF));
+  // PERFIL_BASE é restrição de acesso (supervisor só vê a própria base) — sempre aplicada.
+  // O filtro do dropdown "Base" é só uma escolha de visualização, aplicado depois,
+  // pra não afetar o ranking (que precisa ver todas as bases que o usuário tem permissão de ver).
+  if(PERFIL_BASE) imps = imps.filter(r=>normBase(r.base)===normBase(PERFIL_BASE));
 
   // Buscar acertadas do mês
   let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
@@ -463,7 +466,11 @@ async function carregarDados(){
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
 
   // Filtrar: remover os que foram acertados (saíram de impedimento)
-  dadosRaw = (imps||[]).filter(r => !acertadasSet.has(`${r.instalacao}|${r.reg}`));
+  dadosRawTodasBases = (imps||[]).filter(r => !acertadasSet.has(`${r.instalacao}|${r.reg}`));
+
+  // dadosRaw aplica também o filtro do dropdown de base (KPIs, gráficos, tabela)
+  const baseDropdown = document.getElementById('f-base').value;
+  dadosRaw = baseDropdown ? dadosRawTodasBases.filter(r=>normBase(r.base)===normBase(baseDropdown)) : dadosRawTodasBases;
 
   // Popular filtros
   // Lista de bases: busca independente do filtro de base selecionado, para o dropdown
@@ -564,7 +571,7 @@ async function renderRankingBases(baseAtiva){
   const rankingEl = document.getElementById('ranking-bases');
   if(!rankingEl) return;
   const porBase = {};
-  dadosRaw.filter(r=>(r.responsabilidade||'').toUpperCase()==='GBS').forEach(r=>{
+  dadosRawTodasBases.filter(r=>(r.responsabilidade||'').toUpperCase()==='GBS').forEach(r=>{
     if(!r.base) return;
     porBase[r.base] = (porBase[r.base]||0) + 1;
   });
