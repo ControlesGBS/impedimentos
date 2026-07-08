@@ -33,7 +33,7 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .resp-btn.ativo{background:#2d7a2d;color:#fff;border-color:#2d7a2d}
 
 /* KPIs */
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
 .kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;text-align:center}
 .kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .kpi-value{font-size:26px;font-weight:500;color:#1a4a1a}
@@ -536,11 +536,15 @@ async function renderPainel(){
 
   // Para o total de leituras, buscamos da tabela jornada
   buscarTotalLeituras(base, rz, leit).then(total => {
+    const pctContrato = total ? (qtdGbs/total*100) : 0;
+    const dentroMeta = pctContrato <= 0.30;
+    const corMeta = dentroMeta ? '#16a34a' : '#dc2626';
     document.getElementById('kpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">${qtdImp.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">${qtdGbs.toLocaleString('pt-BR')}</div></div>
-      <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>`;
+      <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>
+      <div class="kpi"><div class="kpi-label">Resultado do Contrato</div><div class="kpi-value" style="color:${corMeta}">${pctContrato.toFixed(2)}%</div><div style="font-size:10px;font-weight:600;color:${corMeta}">${dentroMeta?'✓ Dentro da meta':'⚠ Fora da meta'} (0,30%)</div></div>`;
   });
 
   await renderGraficos(dados, rz, leit);
