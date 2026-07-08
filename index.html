@@ -164,7 +164,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       </div>
     </div>
     <div id="ranking-wrap" style="margin-left:auto;display:flex;flex-direction:column;align-items:center">
-      <div id="ranking-titulo" style="font-size:11px;font-weight:700;color:#4a7a4a;letter-spacing:.3px;margin-bottom:2px;transition:transform .2s;white-space:nowrap">Ranking - INFM</div>
+      <div id="ranking-titulo" style="font-size:11px;font-weight:700;color:#4a7a4a;letter-spacing:.3px;margin-bottom:2px;white-space:nowrap">Ranking - INFM</div>
       <div id="ranking-bases" style="display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;justify-content:center"></div>
     </div>
   </div>
@@ -454,23 +454,21 @@ async function carregarDados(){
     if(lote.length < LOTE) break;
     _from += LOTE;
   }
-  // PERFIL_BASE é restrição de acesso (supervisor só vê a própria base) — sempre aplicada.
-  // O filtro do dropdown "Base" é só uma escolha de visualização, aplicado depois,
-  // pra não afetar o ranking (que precisa ver todas as bases que o usuário tem permissão de ver).
-  if(PERFIL_BASE) imps = imps.filter(r=>normBase(r.base)===normBase(PERFIL_BASE));
-
   // Buscar acertadas do mês
   let qAcert = sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesStr);
   const {data:acert} = await qAcert;
 
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
 
-  // Filtrar: remover os que foram acertados (saíram de impedimento)
+  // dadosRawTodasBases: TODAS as bases, sem nenhuma restrição — alimenta só o ranking,
+  // que deve mostrar a colocação real mesmo para supervisor (ele não vê tabela/detalhe das outras, só o ranking).
   dadosRawTodasBases = (imps||[]).filter(r => !acertadasSet.has(`${r.instalacao}|${r.reg}`));
 
-  // dadosRaw aplica também o filtro do dropdown de base (KPIs, gráficos, tabela)
+  // dadosRaw aplica PERFIL_BASE (restrição de acesso do supervisor) e o filtro do dropdown de base
+  // (KPIs, gráficos, tabela continuam restritos como sempre)
+  let dadosPermitidos = PERFIL_BASE ? dadosRawTodasBases.filter(r=>normBase(r.base)===normBase(PERFIL_BASE)) : dadosRawTodasBases;
   const baseDropdown = document.getElementById('f-base').value;
-  dadosRaw = baseDropdown ? dadosRawTodasBases.filter(r=>normBase(r.base)===normBase(baseDropdown)) : dadosRawTodasBases;
+  dadosRaw = baseDropdown ? dadosPermitidos.filter(r=>normBase(r.base)===normBase(baseDropdown)) : dadosPermitidos;
 
   // Popular filtros
   // Lista de bases: busca independente do filtro de base selecionado, para o dropdown
@@ -595,19 +593,6 @@ async function renderRankingBases(baseAtiva){
     </span>`;
   }).join('');
 
-  // Faz o título "Ranking - INFM" acompanhar a base selecionada, ficando centralizado em cima dela
-  const tituloEl = document.getElementById('ranking-titulo');
-  if(tituloEl){
-    const badgeAtivo = document.getElementById('ranking-badge-ativo');
-    if(badgeAtivo){
-      const wrapRect = rankingEl.getBoundingClientRect();
-      const badgeRect = badgeAtivo.getBoundingClientRect();
-      const offset = (badgeRect.left + badgeRect.width/2) - (wrapRect.left + wrapRect.width/2);
-      tituloEl.style.transform = `translateX(${offset}px)`;
-    } else {
-      tituloEl.style.transform = 'translateX(0)';
-    }
-  }
 }
 
 // Busca paginada da jornada para evitar limite de 1000 registros do Supabase
