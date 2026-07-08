@@ -176,6 +176,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   <div class="graficos">
     <div class="grafico-card">
       <h3>% Impedimentos por Base (GBS)</h3>
+      <div id="ranking-bases" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:10px"></div>
       <div class="chart-wrap"><canvas id="chart-base"></canvas></div>
     </div>
     <div class="grafico-card local-scroll">
@@ -539,12 +540,13 @@ async function renderPainel(){
     const pctContrato = total ? (qtdGbs/total*100) : 0;
     const dentroMeta = pctContrato <= 0.30;
     const corMeta = dentroMeta ? '#16a34a' : '#dc2626';
+    const labelResultado = base ? 'Resultado da Base' : 'Resultado do Contrato';
     document.getElementById('kpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">Qtd. Leituras</div><div class="kpi-value">${total.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Qtd. Impedimentos</div><div class="kpi-value">${qtdImp.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">${qtdGbs.toLocaleString('pt-BR')}</div></div>
       <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>
-      <div class="kpi"><div class="kpi-label">Resultado do Contrato</div><div class="kpi-value" style="color:${corMeta}">${pctContrato.toFixed(2)}%</div><div style="font-size:10px;font-weight:600;color:${corMeta}">${dentroMeta?'✓ Dentro da meta':'⚠ Fora da meta'} (0,30%)</div></div>`;
+      <div class="kpi"><div class="kpi-label">${labelResultado}</div><div class="kpi-value" style="color:${corMeta}">${pctContrato.toFixed(2)}%</div><div style="font-size:10px;font-weight:600;color:${corMeta}">${dentroMeta?'✓ Dentro da meta':'⚠ Fora da meta'} (0,30%)</div></div>`;
   });
 
   await renderGraficos(dados, rz, leit);
@@ -672,6 +674,16 @@ async function renderGraficos(dados, rz, leit){
     const tot = totalLeitPorBase[b]||1;
     return ((porBase[b]||0)/tot*100).toFixed(2);
   });
+
+  const rankingEl = document.getElementById('ranking-bases');
+  if(rankingEl){
+    rankingEl.innerHTML = basesLabel.map((b,i)=>`
+      <span style="display:inline-flex;align-items:baseline;gap:6px">
+        <span style="font-size:22px;font-weight:700;color:${corDaBase(b).border}">${i+1}º</span>
+        <span style="font-size:16px;font-weight:600;color:#1a2a1a">${b}</span>
+        <span style="font-size:14px;font-weight:500;color:#4a7a4a">${pctBase[i]}%</span>
+      </span>`).join('');
+  }
 
   if(chartBase) chartBase.destroy();
   chartBase = new Chart(document.getElementById('chart-base'), {
