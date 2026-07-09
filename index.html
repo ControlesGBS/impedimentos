@@ -165,7 +165,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
     </div>
     <div id="ranking-wrap" style="margin-left:auto;display:flex;flex-direction:column;align-items:center">
       <div id="ranking-titulo" style="font-size:11px;font-weight:700;color:#4a7a4a;letter-spacing:.3px;margin-bottom:2px;white-space:nowrap">Ranking - INFM</div>
-      <div id="ranking-bases" style="display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;justify-content:center"></div>
+      <div id="ranking-bases" style="display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;justify-content:center"></div>
     </div>
   </div>
   <div class="kpis" id="kpis" style="margin-bottom:0;padding-bottom:10px">
@@ -585,10 +585,10 @@ async function renderRankingBases(baseAtiva){
   rankingEl.innerHTML = basesOrdenadas.map((b,i)=>{
     const pct = ((porBase[b]||0)/(totalLeitPorBase[b]||1)*100).toFixed(2);
     const ativa = baseAtiva && normBase(b)===normBase(baseAtiva);
-    return `<span ${ativa?'id="ranking-badge-ativo"':''} style="display:inline-flex;align-items:baseline;gap:5px;${ativa?'background:#eaf3de;border-radius:6px;padding:2px 8px':''}">
-      <span style="font-size:20px;font-weight:700;color:${corDaBase(b).border}">${i+1}º</span>
-      <span style="font-size:14px;font-weight:600;color:#1a2a1a">${b}</span>
-      <span style="font-size:12px;font-weight:500;color:#4a7a4a">${pct}%</span>
+    return `<span ${ativa?'id="ranking-badge-ativo"':''} style="display:inline-flex;align-items:baseline;gap:3px;${ativa?'background:#eaf3de;border-radius:5px;padding:1px 5px':''}">
+      <span style="font-size:13px;font-weight:700;color:${corDaBase(b).border}">${i+1}º</span>
+      <span style="font-size:11px;font-weight:600;color:#1a2a1a">${b}</span>
+      <span style="font-size:9px;font-weight:500;color:#4a7a4a">${pct}%</span>
     </span>`;
   }).join('');
 
