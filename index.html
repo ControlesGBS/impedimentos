@@ -423,7 +423,8 @@ async function iniciar(){
     uniq.forEach(b=>selBase.innerHTML+=`<option value="${b}">${b}</option>`);
   }
 
-  await carregarDados();
+  // carregarDados e carregarAcertadas não dependem um do outro
+  await Promise.all([carregarDados(), carregarAcertadas()]);
 }
 
 async function carregarDados(){
