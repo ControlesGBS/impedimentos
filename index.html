@@ -657,12 +657,21 @@ async function buscarTotalLeiturasImpl(mes, base, rz, leit){
     return 0;
   }
 
-  // Tenta totais_rz primeiro (mais preciso, sem limite de paginacao)
+  // Tenta totais_rz primeiro (mais preciso) -- paginado, porque um mês cheio passa
+  // fácil de 1000 linhas (mes_ref x rz x matricula) e o Supabase corta em 1000 por
+  // padrão; sem isso a soma vinha cortada, faltando RZs inteiros no total.
   for(const mes_ref of mesRefs){
-    let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref);
-    if(rz) q = q.eq('rz', rz);
-    const {data:totais} = await q;
-    if(!totais||!totais.length) continue;
+    let totais = [], from = 0;
+    while(true){
+      let q = sb.from('totais_rz').select('rz,total_leituras').eq('mes_ref', mes_ref).range(from, from+999);
+      if(rz) q = q.eq('rz', rz);
+      const {data} = await q;
+      if(!data||!data.length) break;
+      totais = totais.concat(data);
+      if(data.length < 1000) break;
+      from += 1000;
+    }
+    if(!totais.length) continue;
 
     if(base){
       // busca case-insensitive sem ilike (Supabase nao aceita ilike com espacos na URL)
