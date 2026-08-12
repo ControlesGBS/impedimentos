@@ -127,6 +127,7 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
   <button onclick="location.href='https://gbsservicos.com/controles'" title="Voltar ao Portal" style="font-size:16px;padding:6px 12px">🏠</button>
   <button class="ativo" onclick="irPara('painel',this)">Painel</button>
   <button onclick="irPara('acertadas',this)">Acertadas</button>
+  <button onclick="irPara('ocorrencias',this)">Ocorrências</button>
   <button onclick="irPara('admin',this)">Administração</button>
 </div>
 <div class="banner-atualizacao" id="banner-atualizacao">
@@ -278,6 +279,75 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
 </div>
 </div>
 
+<!-- OCORRÊNCIAS -->
+<div class="pag" id="pag-ocorrencias">
+<div class="pag-painel-inner">
+  <div class="painel-topo">
+  <div class="filtros">
+    <div>
+      <label>Mês/Ano</label>
+      <select id="oc-mes" onchange="carregarTabelaOc()"></select>
+    </div>
+    <div>
+      <label>Base</label>
+      <select id="oc-base" onchange="carregarTabelaOc()"><option value="">Todas</option></select>
+    </div>
+    <div>
+      <label>Leiturista</label>
+      <select id="oc-leit" onchange="carregarTabelaOc()"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label>Código de Ocorrência</label>
+      <select id="oc-cod" onchange="carregarTabelaOc()"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label>Responsabilidade</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="resp-btns">
+          <button class="resp-btn ativo" onclick="setRespOc('todos',this)">Todos</button>
+          <button class="resp-btn" onclick="setRespOc('GBS',this)">GBS</button>
+          <button class="resp-btn" onclick="setRespOc('CEMIG',this)">CEMIG</button>
+        </div>
+        <div id="oc-alerta-grave" style="display:none;background:#fff7e6;border:1.5px solid #d97706;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;color:#92400e;white-space:nowrap"></div>
+      </div>
+    </div>
+  </div>
+  <div class="kpis" id="oc-kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0;padding-bottom:10px">
+    <div class="kpi"><div class="kpi-label">Total de Impedimentos</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">—</div></div>
+  </div>
+  </div><!-- fim painel-topo -->
+
+  <div class="painel-scroll">
+  <div class="twrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0">
+      <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px">&#9776; Lista de Ocorrências</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="btn-baixar-oc" onclick="baixarOcorrencias()" style="background:#2d7a2d;border:none;color:#fff;padding:3px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:500">⬇ Baixar xlsx</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Base</th>
+        <th>Leiturista</th>
+        <th>RZ</th>
+        <th>UL</th>
+        <th>Instalação</th>
+        <th>Medidor</th>
+        <th>Ocorrência</th>
+        <th>Endereço</th>
+        <th>Qtd. Digitação</th>
+        <th>Responsabilidade</th>
+      </tr></thead>
+      <tbody id="oc-tbody"><tr><td colspan="10" class="status-msg">Carregando...</td></tr></tbody>
+    </table>
+    <div class="pagination" id="oc-pagination"></div>
+  </div>
+  </div><!-- fim painel-scroll -->
+</div><!-- fim pag-painel-inner -->
+</div>
+
 <!-- ADMIN -->
 <div class="pag" id="pag-admin">
   <div class="admin-grid">
@@ -322,6 +392,14 @@ let paginaAtual = 1;
 const POR_PAGINA = 100;
 let tabelaAberta = true;
 
+// ── OCORRÊNCIAS ────────────────────────────────────────────────────
+const CODIGO_GRAVE = '3868';
+let respFiltroOc = 'todos';
+let dadosTabelaOc = [];
+let paginaAtualOc = 1;
+let codigosOcorrenciaTodos = []; // [{ocorrencia, responsabilidade}] — vem da RPC, escopado por mês
+let ocorrenciasCarregada = false; // carregarTabelaOc só busca na 1ª vez que a aba abre (ver irPara)
+
 let chartBase = null, chartLocal = null, chartLeit = null;
 
 function toggleTabela(header){
@@ -341,14 +419,39 @@ function irPara(id, btn){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('ativo'));
   document.getElementById('pag-'+id).classList.add('ativo');
   btn.classList.add('ativo');
+  if(id==='ocorrencias' && !ocorrenciasCarregada){
+    ocorrenciasCarregada = true;
+    carregarTabelaOc();
+  }
 }
 async function sair(){ await sb.auth.signOut(); location.href='https://gbsservicos.com'; }
 
 function setResp(v, btn){
   respFiltro = v;
-  document.querySelectorAll('.resp-btn').forEach(b=>b.classList.remove('ativo'));
+  btn.closest('.resp-btns').querySelectorAll('.resp-btn').forEach(b=>b.classList.remove('ativo'));
   btn.classList.add('ativo');
   renderPainel();
+}
+
+function setRespOc(v, btn){
+  respFiltroOc = v;
+  btn.closest('.resp-btns').querySelectorAll('.resp-btn').forEach(b=>b.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  renderDropdownCodigosOc();
+  carregarTabelaOc();
+}
+
+// Repopula o dropdown de código só com os códigos da responsabilidade selecionada.
+// Mantém a seleção atual se ela ainda existir na lista filtrada, senão volta pra "Todos".
+function renderDropdownCodigosOc(){
+  const selCod = document.getElementById('oc-cod');
+  if(!selCod) return;
+  const vAtual = selCod.value;
+  const lista = respFiltroOc==='todos'
+    ? codigosOcorrenciaTodos
+    : codigosOcorrenciaTodos.filter(c=>c.responsabilidade===respFiltroOc);
+  selCod.innerHTML = '<option value="">Todos</option>' + lista.map(c=>`<option value="${c.ocorrencia}">${c.ocorrencia}</option>`).join('');
+  if(lista.some(c=>c.ocorrencia===vAtual)) selCod.value = vAtual;
 }
 
 // ── PERFIL DO USUÁRIO ─────────────────────────────────────────────
@@ -422,6 +525,31 @@ async function iniciar(){
     const uniq=[...new Set((ld||[]).map(r=>r.base).filter(Boolean))].sort();
     uniq.forEach(b=>selBase.innerHTML+=`<option value="${b}">${b}</option>`);
   }
+
+  // Ocorrências — filtros próprios. Mês reaproveita a mesma lista de meses do Painel;
+  // Base/Leiturista vêm direto do cadastro de matriculas (não dependem do mês selecionado);
+  // Código de Ocorrência é populado dentro de carregarTabelaOc(), escopado pelo mês.
+  const selOcMes = document.getElementById('oc-mes');
+  selOcMes.innerHTML = valsImp.map(val=>`<option value="${val}">${val}</option>`).join('');
+  if(selOcMes.options.length>0) selOcMes.selectedIndex=0;
+
+  const selOcBase = document.getElementById('oc-base');
+  if(PERFIL_BASE){
+    selOcBase.innerHTML = `<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
+    selOcBase.value = PERFIL_BASE;
+    selOcBase.disabled = true;
+  } else {
+    const uniqOc=[...new Set((ld||[]).map(r=>r.base).filter(Boolean))].sort();
+    selOcBase.innerHTML = '<option value="">Todas</option>'+uniqOc.map(b=>`<option value="${b}">${b}</option>`).join('');
+  }
+
+  const allMatsOc = await getMatriculas();
+  const matsEscopoOc = allMatsOc.filter(m=>{
+    if(PERFIL_BASE) return normBase(m.base)===normBase(PERFIL_BASE);
+    return true;
+  }).sort((a,b)=>(a.matricula||'').localeCompare(b.matricula||''));
+  document.getElementById('oc-leit').innerHTML = '<option value="">Todos</option>' +
+    matsEscopoOc.map(m=>`<option value="${m.matricula}">${m.nome_leiturista?`${m.matricula} — ${m.nome_leiturista}`:m.matricula}</option>`).join('');
 
   // carregarDados e carregarAcertadas não dependem um do outro
   await Promise.all([carregarDados(), carregarAcertadas()]);
@@ -1087,6 +1215,215 @@ function baixarImpedimentos(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Impedimentos');
   XLSX.writeFile(wb, `Impedimentos_${mes.replace('/','_')}.xlsx`);
+}
+
+// ── OCORRÊNCIAS ────────────────────────────────────────────────────
+// Resolve o escopo comum (mês, formato de mes_ref usado no banco, e lista de matrículas
+// permitidas conforme base/leiturista/perfil) uma única vez -- reaproveitado pela busca da
+// tabela, pelas contagens dos KPIs e pela checagem do código grave.
+async function resolverEscopoOc(){
+  const mes = document.getElementById('oc-mes').value;
+  if(!mes) return null;
+  const [mm,aa] = mes.split('/');
+  const mesStr = `${aa}-${mm}`;
+  const mesStr01 = `${aa}-${mm}-01`;
+
+  const base = PERFIL_BASE || document.getElementById('oc-base').value;
+  const leit = document.getElementById('oc-leit').value;
+
+  let matFiltro = null;
+  if(leit){
+    matFiltro = [leit];
+  } else if(base){
+    const allMats = await getMatriculas();
+    matFiltro = allMats.filter(m=>normBase(m.base)===normBase(base)).map(m=>m.matricula);
+    if(!matFiltro.length) return {vazio:true};
+  }
+
+  let mesRefUsado = mesStr01;
+  let q1 = sb.from('impedimentos').select('*', {count:'exact', head:true}).eq('mes_ref', mesStr01);
+  if(matFiltro) q1 = q1.in('matricula', matFiltro);
+  let {count} = await q1;
+  if(!count){
+    let q2 = sb.from('impedimentos').select('*', {count:'exact', head:true}).eq('mes_ref', mesStr);
+    if(matFiltro) q2 = q2.in('matricula', matFiltro);
+    const r2 = await q2;
+    if(r2.count){ mesRefUsado = mesStr; }
+  }
+
+  return {mesStr, mesRefUsado, matFiltro, vazio:false};
+}
+
+async function buscarDadosOcorrencias(escopo){
+  const cod = document.getElementById('oc-cod').value;
+
+  const montarQuery = (contarApenas) => {
+    let q = sb.from('impedimentos');
+    q = contarApenas ? q.select('*', {count:'exact', head:true}) : q.select('*');
+    q = q.eq('mes_ref', escopo.mesRefUsado);
+    if(respFiltroOc !== 'todos') q = q.eq('responsabilidade', respFiltroOc);
+    if(cod) q = q.eq('ocorrencia', cod);
+    if(escopo.matFiltro) q = q.in('matricula', escopo.matFiltro);
+    return q;
+  };
+
+  const {count} = await montarQuery(true);
+  const LOTE = 1000;
+  const totalPaginas = Math.max(1, Math.ceil((count||0)/LOTE));
+  const paginas = await Promise.all(
+    Array.from({length: totalPaginas}, (_, i) =>
+      montarQuery(false).order('base').order('matricula').order('data').range(i*LOTE, i*LOTE + LOTE - 1)
+    )
+  );
+  let linhas = paginas.flatMap(p => p.data || []);
+
+  const {data:acert} = await sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', escopo.mesStr);
+  const acertSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
+  return linhas.filter(r => !acertSet.has(`${r.instalacao}|${r.reg}`));
+}
+
+// Contagem leve (head:true) por responsabilidade, ignorando o toggle Todos/GBS/CEMIG --
+// os 3 KPIs (Total/GBS/CEMIG) mostram sempre os 3 números juntos, só respeitando
+// mês/base/leiturista/código.
+async function contarOcorrenciasOc(escopo, responsabilidade){
+  const cod = document.getElementById('oc-cod').value;
+  let q = sb.from('impedimentos').select('*', {count:'exact', head:true})
+    .eq('mes_ref', escopo.mesRefUsado).eq('responsabilidade', responsabilidade);
+  if(cod) q = q.eq('ocorrencia', cod);
+  if(escopo.matFiltro) q = q.in('matricula', escopo.matFiltro);
+  const {count} = await q;
+  return count||0;
+}
+
+// Busca os códigos só do mês selecionado (não da tabela impedimentos inteira) -- via RPC
+// codigos_ocorrencia_mes (ver schema.sql), que compara mes_ref::text like 'yyyy-mm%' pra
+// funcionar independente do tipo real da coluna mes_ref.
+async function buscarCodigosOcorrenciaMes(escopo){
+  const {data, error} = await sb.rpc('codigos_ocorrencia_mes', {p_mes_ref: escopo.mesStr});
+  if(error){ console.error('codigos_ocorrencia_mes falhou:', error); return []; }
+  return data || [];
+}
+
+function renderKpisOc(qtdGbs, qtdCemig){
+  const kpisEl = document.getElementById('oc-kpis');
+  if(!kpisEl) return;
+  const qtdTotal = qtdGbs + qtdCemig;
+  kpisEl.innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total de Impedimentos</div><div class="kpi-value">${qtdTotal.toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">${qtdGbs.toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">${qtdCemig.toLocaleString('pt-BR')}</div></div>`;
+}
+
+// Sempre olha pro código grave, ignorando o toggle de Responsabilidade e o dropdown de
+// Código -- só respeita mês/base/leiturista, pra avisar mesmo que o usuário não tenha
+// filtrado especificamente por esse código.
+async function verificarCodigoGrave(escopo){
+  const el = document.getElementById('oc-alerta-grave');
+  if(!el) return;
+  let q = sb.from('impedimentos').select('*', {count:'exact', head:true})
+    .eq('mes_ref', escopo.mesRefUsado).eq('ocorrencia', CODIGO_GRAVE);
+  if(escopo.matFiltro) q = q.in('matricula', escopo.matFiltro);
+  const {count} = await q;
+  if(!count){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = `⚠️ ATENÇÃO: ${count} impedimento(s) com código ${CODIGO_GRAVE}`;
+}
+
+async function carregarTabelaOc(){
+  document.getElementById('oc-tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
+  document.getElementById('oc-pagination').innerHTML = '';
+  document.getElementById('oc-kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total de Impedimentos</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. GBS</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Imp. CEMIG</div><div class="kpi-value">—</div></div>`;
+  document.getElementById('oc-alerta-grave').style.display = 'none';
+
+  const escopo = await resolverEscopoOc();
+  if(!escopo || escopo.vazio){
+    dadosTabelaOc = [];
+    paginaAtualOc = 1;
+    renderTabelaOc([]);
+    renderKpisOc(0, 0);
+    codigosOcorrenciaTodos = [];
+    renderDropdownCodigosOc();
+    return;
+  }
+
+  const [dados, qtdGbs, qtdCemig, codigosMes] = await Promise.all([
+    buscarDadosOcorrencias(escopo),
+    contarOcorrenciasOc(escopo, 'GBS'),
+    contarOcorrenciasOc(escopo, 'CEMIG'),
+    buscarCodigosOcorrenciaMes(escopo),
+    verificarCodigoGrave(escopo)
+  ]);
+
+  codigosOcorrenciaTodos = codigosMes;
+  renderDropdownCodigosOc();
+
+  dadosTabelaOc = dados;
+  paginaAtualOc = 1;
+  renderTabelaOc(dadosTabelaOc);
+  renderKpisOc(qtdGbs, qtdCemig);
+}
+
+function renderTabelaOc(dados){
+  const inicio = (paginaAtualOc-1)*POR_PAGINA;
+  const pagina = dados.slice(inicio, inicio+POR_PAGINA);
+  const totalPags = Math.ceil(dados.length/POR_PAGINA);
+
+  if(!pagina.length){
+    document.getElementById('oc-tbody').innerHTML = '<tr><td colspan="10" class="status-msg">Nenhuma ocorrência encontrada</td></tr>';
+    document.getElementById('oc-pagination').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('oc-tbody').innerHTML = pagina.map(r=>`<tr>
+    <td>${r.base||'—'}</td>
+    <td>${r.matricula||'—'}</td>
+    <td>${r.rz||'—'}</td>
+    <td>${r.ul||'—'}</td>
+    <td>${r.instalacao||'—'}</td>
+    <td>${r.medidor||'—'}</td>
+    <td>${r.ocorrencia||'—'}</td>
+    <td>${r.endereco||'—'}</td>
+    <td style="text-align:center">${r.qtd_digitacao||1}</td>
+    <td><span class="badge-${r.responsabilidade==='GBS'?'gbs':'cemig'}">${r.responsabilidade||'—'}</span></td>
+  </tr>`).join('');
+
+  document.getElementById('oc-pagination').innerHTML = `
+    <button onclick="irPaginaOc(${paginaAtualOc-1})" ${paginaAtualOc<=1?'disabled':''}>&#8592; Anterior</button>
+    <span>Página ${paginaAtualOc} de ${totalPags} &nbsp;|&nbsp; ${dados.length.toLocaleString('pt-BR')} registros</span>
+    <button onclick="irPaginaOc(${paginaAtualOc+1})" ${paginaAtualOc>=totalPags?'disabled':''}>Próxima &#8594;</button>`;
+}
+
+function irPaginaOc(p){
+  paginaAtualOc = p;
+  renderTabelaOc(dadosTabelaOc);
+  document.querySelector('#pag-ocorrencias .twrap').scrollIntoView({behavior:'smooth'});
+}
+
+async function baixarOcorrencias(){
+  const btn = document.getElementById('btn-baixar-oc');
+  if(btn){ btn.disabled = true; btn.textContent = '⬇ Buscando...'; }
+  try{
+    const escopo = await resolverEscopoOc();
+    if(!escopo || escopo.vazio){ alert('Nenhum dado para baixar.'); return; }
+    const dados = await buscarDadosOcorrencias(escopo);
+    if(!dados.length){ alert('Nenhum dado para baixar.'); return; }
+    const mes = document.getElementById('oc-mes').value || 'ocorrencias';
+    const cab = ['Base','Leiturista','RZ','UL','Instalação','Medidor','Reg.','Ocorrência','Endereço','Qtd. Digitação','Responsabilidade'];
+    const linhas = dados.map(r=>[
+      r.base||'', r.matricula||'', r.rz||'', r.ul||'',
+      r.instalacao||'', r.medidor||'', r.reg||'', r.ocorrencia||'',
+      r.endereco||'', r.qtd_digitacao||'', r.responsabilidade||''
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([cab, ...linhas]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ocorrências');
+    XLSX.writeFile(wb, `Ocorrencias_${mes.replace('/','_')}.xlsx`);
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '⬇ Baixar xlsx'; }
+  }
 }
 
 iniciar();

@@ -38,3 +38,26 @@ create index if not exists idx_acert_inst on leituras_acertadas(instalacao);
 
 alter table impedimentos      disable row level security;
 alter table leituras_acertadas disable row level security;
+
+-- Usada pelo dropdown de "Código de Ocorrência" da aba Ocorrências. Traz a responsabilidade
+-- junto pra filtrar o dropdown no front conforme o toggle Todos/GBS/CEMIG, escopado pelo
+-- mês selecionado (não a tabela impedimentos inteira, que cresce mês a mês).
+-- p_mes_ref é text no formato 'yyyy-mm', comparado contra mes_ref::text via like -- assim
+-- funciona independente do mes_ref real ser date ou text, e independente de ter sido
+-- gravado como 'yyyy-mm-01' ou só 'yyyy-mm' (essa tabela não tem esse campo no create table
+-- acima porque foi adicionado depois via migração avulsa; não dava pra confirmar o tipo
+-- exato sem risco de repetir o erro de cast que aconteceu no projeto da Exata).
+drop function if exists codigos_ocorrencia_mes(date);
+drop function if exists codigos_ocorrencia_mes(text);
+create or replace function codigos_ocorrencia_mes(p_mes_ref text)
+returns table(ocorrencia text, responsabilidade text)
+language sql
+as $$
+  select distinct ocorrencia, responsabilidade from impedimentos
+  where mes_ref::text like p_mes_ref || '%' and ocorrencia is not null
+  order by ocorrencia;
+$$;
+
+-- mes_ref é filtrado em praticamente toda consulta do módulo e não tem índice --
+-- ajuda tanto as consultas existentes quanto essa nova função.
+create index if not exists idx_imp_mesref on impedimentos(mes_ref);
