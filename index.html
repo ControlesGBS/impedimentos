@@ -195,6 +195,13 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
     </div>
   </div>
 
+  <div style="margin-bottom:12px">
+    <div class="grafico-card">
+      <h3 id="titulo-grafico-historico">Histórico Anual de Impedimentos</h3>
+      <div class="chart-wrap"><canvas id="chart-historico"></canvas></div>
+    </div>
+  </div>
+
   <div class="twrap">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#1a4a1a;border-radius:8px 8px 0 0">
       <span style="color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;cursor:pointer" onclick="toggleTabela(this.closest('div'))">&#9776; Lista de Impedimentos</span>
@@ -400,7 +407,8 @@ let paginaAtualOc = 1;
 let codigosOcorrenciaTodos = []; // [{ocorrencia, responsabilidade}] — vem da RPC, escopado por mês
 let ocorrenciasCarregada = false; // carregarTabelaOc só busca na 1ª vez que a aba abre (ver irPara)
 
-let chartBase = null, chartLocal = null, chartLeit = null;
+let chartBase = null, chartLocal = null, chartLeit = null, chartHistorico = null;
+let MESES_HISTORICO = []; // últimos 12 meses ('yyyy-mm') com dado em impedimentos, preenchido em iniciar()
 
 function toggleTabela(header){
   tabelaAberta = !tabelaAberta;
@@ -503,6 +511,10 @@ async function iniciar(){
   const valsImp=[...new Set((mesesImp||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
   sel.innerHTML='';
   valsImp.forEach(val=>{ sel.innerHTML += `<option value="${val}">${val}</option>`; });
+
+  // Últimos 12 meses com dado, pro gráfico "Histórico Anual" -- independe do mês
+  // selecionado no filtro (esse gráfico sempre olha pro histórico inteiro).
+  MESES_HISTORICO = [...new Set((mesesImp||[]).map(r=>r.mes_ref.slice(0,7)))].sort().slice(-12);
 
   const valsAc=[...new Set((mesesAc||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
   selAc.innerHTML='';
@@ -688,6 +700,7 @@ async function renderPainel(){
   await renderGraficos(dados, rz, leit);
   renderTabela(dados);
   renderRankingBases(base);
+  renderGraficoHistorico(); // não aguarda -- não pode atrasar a tabela, que já carrega rápido
 }
 
 // Ranking de bases: sempre calculado com TODAS as bases (ignora filtro de base/leiturista/RZ),
@@ -847,6 +860,111 @@ function corDaBase(nome){
   let hash=0;
   for(let i=0;i<(nome||'').length;i++) hash=(hash*31+nome.charCodeAt(i))>>>0;
   return PALETA_BASES[hash % PALETA_BASES.length];
+}
+
+// ── HISTÓRICO ANUAL (gráfico abaixo de "Impedimentos por Leiturista") ────────────
+// Conta impedimentos de UM mês específico (não o mês selecionado no filtro -- usado pra
+// montar os últimos 12 meses do gráfico). Segue a mesma regra do resto do módulo: sempre
+// exclui leituras_acertadas do mês (tanto do lado GBS quanto CEMIG), igual dadosRawTodasBases.
+async function contarImpedimentosMes(mesRefStr, responsabilidade, matFiltro){
+  const mesStr01 = `${mesRefStr}-01`;
+  const montarQuery = (mesRefUsado, contarApenas) => {
+    let q = sb.from('impedimentos');
+    q = contarApenas ? q.select('*', {count:'exact', head:true}) : q.select('instalacao,reg');
+    q = q.eq('mes_ref', mesRefUsado).eq('responsabilidade', responsabilidade);
+    if(matFiltro) q = q.in('matricula', matFiltro);
+    return q;
+  };
+
+  let mesRefUsado = mesStr01;
+  let {count} = await montarQuery(mesStr01, true);
+  if(!count){
+    const r2 = await montarQuery(mesRefStr, true);
+    if(r2.count){ mesRefUsado = mesRefStr; count = r2.count; }
+  }
+  if(!count) return 0;
+
+  // Só busca e pagina as linhas se esse mês teve alguma leitura acertada registrada --
+  // a maioria dos meses passados não tem nenhuma, e nesse caso o count cru já é o total certo.
+  const {data:acert} = await sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref', mesRefStr);
+  if(!acert || !acert.length) return count;
+
+  const LOTE = 1000;
+  const totalPaginas = Math.max(1, Math.ceil(count/LOTE));
+  const paginas = await Promise.all(
+    Array.from({length: totalPaginas}, (_, i) => montarQuery(mesRefUsado, false).range(i*LOTE, i*LOTE + LOTE - 1))
+  );
+  const linhas = paginas.flatMap(p => p.data || []);
+  const acertSet = new Set(acert.map(a=>`${a.instalacao}|${a.reg}`));
+  return linhas.filter(r => !acertSet.has(`${r.instalacao}|${r.reg}`)).length;
+}
+
+// Mesmo escopo que os filtros de Base/Leiturista do Painel: leiturista selecionado tem
+// prioridade (mostra o histórico dele, não da base); senão respeita base/PERFIL_BASE.
+async function resolverEscopoHistorico(){
+  const leit = document.getElementById('f-leit').value;
+  const base = PERFIL_BASE || document.getElementById('f-base').value;
+
+  if(leit){
+    const allMats = await getMatriculas();
+    const m = allMats.find(m=>m.matricula===leit);
+    return {matFiltro:[leit], label: m?.nome_leiturista ? `${leit} — ${m.nome_leiturista}` : leit};
+  }
+  if(base){
+    const allMats = await getMatriculas();
+    const matFiltro = allMats.filter(m=>normBase(m.base)===normBase(base)).map(m=>m.matricula);
+    return {matFiltro, label: base};
+  }
+  return {matFiltro:null, label:'Todas as bases'};
+}
+
+async function renderGraficoHistorico(){
+  const canvas = document.getElementById('chart-historico');
+  if(!canvas || !MESES_HISTORICO.length) return;
+
+  const {matFiltro, label} = await resolverEscopoHistorico();
+  const respLabel = respFiltro==='todos' ? 'Todos' : respFiltro;
+  const tituloEl = document.getElementById('titulo-grafico-historico');
+  if(tituloEl) tituloEl.textContent = `Histórico Anual de Impedimentos — ${label} (Responsabilidade: ${respLabel})`;
+
+  const totals = await Promise.all(MESES_HISTORICO.map(async mesRef => {
+    if(respFiltro === 'todos'){
+      const [g, c] = await Promise.all([
+        contarImpedimentosMes(mesRef, 'GBS', matFiltro),
+        contarImpedimentosMes(mesRef, 'CEMIG', matFiltro)
+      ]);
+      return g + c;
+    }
+    return contarImpedimentosMes(mesRef, respFiltro, matFiltro);
+  }));
+
+  const labels = MESES_HISTORICO.map(m=>{
+    const [aa,mm] = m.split('-');
+    return `${mm}/${aa}`;
+  });
+
+  if(chartHistorico) chartHistorico.destroy();
+  chartHistorico = new Chart(canvas, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        data:totals,
+        backgroundColor: MESES_HISTORICO.map((m,i)=>PALETA_BASES[i % PALETA_BASES.length].bg),
+        borderColor: MESES_HISTORICO.map((m,i)=>PALETA_BASES[i % PALETA_BASES.length].border),
+        borderWidth:1
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>`Impedimentos: ${c.raw}`}},
+        datalabels:{anchor:'end', align:'top', color:'#1a4a1a', font:{size:11,weight:'500'}}
+      },
+      scales:{y:{beginAtZero:true, ticks:{precision:0}, grace:'15%'}}
+    }
+  });
 }
 
 async function renderGraficos(dados, rz, leit){
