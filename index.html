@@ -47,7 +47,8 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .grafico-card.full{grid-column:1/-1}
 .chart-wrap{position:relative;height:200px}
 .chart-wrap-tall{position:relative;height:260px}
-.chart-wrap-leit{position:relative;height:320px}
+.chart-wrap-leit{position:relative;height:200px}
+.chart-wrap-leit-scroll{overflow-x:auto}
 
 /* TABELA */
 .twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
@@ -188,17 +189,16 @@ tbody td{padding:6px 8px;color:#1a2a1a;border-bottom:0.5px solid #c8e0c8;border-
       <div class="chart-wrap" id="chart-local-wrap"><canvas id="chart-local"></canvas></div>
     </div>
   </div>
-  <div style="margin-bottom:12px">
-    <div class="grafico-card">
-      <h3>Impedimentos por Leiturista</h3>
-      <div class="chart-wrap-leit"><canvas id="chart-leit"></canvas></div>
-    </div>
-  </div>
-
-  <div style="margin-bottom:12px">
+  <div class="graficos" style="margin-bottom:12px">
     <div class="grafico-card">
       <h3 id="titulo-grafico-historico">Histórico Anual de Impedimentos</h3>
       <div class="chart-wrap"><canvas id="chart-historico"></canvas></div>
+    </div>
+    <div class="grafico-card">
+      <h3>Impedimentos por Leiturista</h3>
+      <div class="chart-wrap-leit-scroll">
+        <div class="chart-wrap-leit" id="chart-leit-wrap"><canvas id="chart-leit"></canvas></div>
+      </div>
     </div>
   </div>
 
@@ -1069,6 +1069,12 @@ async function renderGraficos(dados, rz, leit){
   const allMatsTooltip = await getMatriculas();
   const matsMap = {};
   allMatsTooltip.filter(m=>matsIdsSet.has(m.matricula)).forEach(m=>{ matsMap[m.matricula]=m; });
+
+  // Card ficou menor (metade da linha, ao lado do Histórico Anual) -- com muitos
+  // leituristas o gráfico fica largo o suficiente pra rolar dentro do wrapper com scroll,
+  // em vez de espremer todas as barras no espaço reduzido.
+  const wrapLeit = document.getElementById('chart-leit-wrap');
+  if(wrapLeit) wrapLeit.style.width = Math.max(400, leitsTop.length * 32) + 'px';
 
   if(chartLeit) chartLeit.destroy();
   chartLeit = new Chart(document.getElementById('chart-leit'), {
