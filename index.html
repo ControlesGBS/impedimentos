@@ -389,6 +389,21 @@ const OC_CEMIG = new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906
 function normBase(s){
   return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 }
+// A base gravada em cada impedimento vem da planilha de matrículas do dia do upload, então a
+// mesma base pode estar escrita de jeitos diferentes ("Guaxupe", "GUAXUPÉ", "Pouso Alegre",
+// "POUSO ALEGRE"). Sem unificar, ranking, gráficos e filtro mostram a mesma base duas vezes.
+// Aqui cada grafia vira uma só: maiúscula, e com acento quando alguma das grafias tiver.
+function unificarBases(linhas){
+  const melhor={};
+  const temAcento=v=>/[^\x00-\x7F]/.test(v);
+  linhas.forEach(r=>{
+    if(!r.base) return;
+    const k=normBase(r.base), v=r.base.toString().trim().toUpperCase();
+    if(!melhor[k] || (temAcento(v) && !temAcento(melhor[k]))) melhor[k]=v;
+  });
+  linhas.forEach(r=>{ if(r.base) r.base=melhor[normBase(r.base)]; });
+  return linhas;
+}
 
 let respFiltro = 'todos';
 let dadosRaw = [];
@@ -601,7 +616,7 @@ async function carregarDados(){
         .range(i*LOTE, i*LOTE + LOTE - 1)
     )
   );
-  let imps = paginas.flatMap(p => p.data || []);
+  let imps = unificarBases(paginas.flatMap(p => p.data || []));
 
   const {data:acert} = await acertPromise;
   acertadasSet = new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
